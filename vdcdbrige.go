@@ -21,6 +21,8 @@ type VcdcBridgeConfig struct {
 	vendorName string
 
 	mqttDiscoveryEnabled bool
+	tasmotaDisabled      bool
+	shellyDisabled       bool
 }
 
 type VcdcBridge struct {
@@ -41,7 +43,7 @@ func (e *VcdcBridge) NewVcdcBrige(config VcdcBridgeConfig) {
 	e.vcdcClient.Connect()
 	defer e.vcdcClient.Close()
 
-	if config.mqttHost != "" {
+	if config.mqttDiscoveryEnabled {
 		log.Printf("Connecting to MQTT Host: %s\n", config.mqttHost)
 
 		mqttBroker := fmt.Sprintf("tcp://%s", config.mqttHost)
@@ -71,8 +73,22 @@ func (e *VcdcBridge) startDiscovery() {
 		}
 
 		// Tasmota Device Discovery
-		if token := e.mqttClient.Subscribe("tasmota/discovery/#", 0, nil); token.Wait() && token.Error() != nil {
-			log.Println(token.Error())
+		if !e.config.tasmotaDisabled {
+			if token := e.mqttClient.Subscribe("tasmota/discovery/#", 0, nil); token.Wait() && token.Error() != nil {
+				log.Println(token.Error())
+			}
+		}
+
+		// Shelly Device Discovery
+		if !e.config.shellyDisabled {
+
+			if token := e.mqttClient.Subscribe("shellies/announce", 0, nil); token.Wait() && token.Error() != nil {
+				log.Println(token.Error())
+			}
+
+			if token := e.mqttClient.Publish("shellies/command", 0, false, "announce"); token.Wait() && token.Error() != nil {
+				log.Println(token.Error())
+			}
 		}
 	}
 
@@ -117,6 +133,37 @@ func (e *VcdcBridge) mqttCallback() mqtt.MessageHandler {
 				e.vcdcClient.AddDevice(device)
 			}
 		}
+
+		// Shelly Device discovery
+		if strings.Contains(msg.Topic(), "shellies") && strings.Contains(msg.Topic(), "announce") {
+
+			var shellyDevice discovery.ShellyDevice
+			err := json.Unmarshal(msg.Payload(), &shellyDevice)
+			if err != nil {
+				log.Print("Unmarshal to Shelly Device failed\n", err.Error())
+				return
+			}
+
+			log.Printf("Shelly Device: Name: %s, IP: %s, Mac %s\n", shellyDevice.Id, shellyDevice.IPAddress, shellyDevice.MACAddress)
+
+			_, notfounderr := e.vcdcClient.GetDeviceByUniqueId(shellyDevice.MACAddress)
+
+			if notfounderr != nil {
+				// not found
+				log.Printf("Device not found in vcdc -> Adding \n")
+
+				device := vdcdapi.Device{}
+				device.NewDevice(*e.vcdcClient, shellyDevice.MACAddress)
+				device.SetName(shellyDevice.Id)
+				device.SetChannelMessageCB(e.deviceCallback())
+				device.ModelVersion = shellyDevice.FirmewareVersion
+				device.SourceDevice = shellyDevice
+
+				e.vcdcClient.AddDevice(device)
+			}
+
+		}
+
 	}
 
 	return f

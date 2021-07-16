@@ -9,13 +9,16 @@ import (
 
 func main() {
 
-	p := argparse.NewParser("go-vdcd-api-client", "Go Client for plan44's vdcd")
+	p := argparse.NewParser("vdcd", "Use Tasmota/Shelly as exernal device for a plan44.ch vdcd")
 
 	host := p.String("H", "host", &argparse.Options{Required: true, Help: "vdcd Host to connect to"})
 	port := p.Int("p", "port", &argparse.Options{Required: false, Help: "Port of your vdcd host", Default: 8999})
 	mqttHost := p.String("", "mqtthost", &argparse.Options{Required: false, Help: "MQTT Host to connect to"})
 	modelName := p.String("", "modelname", &argparse.Options{Required: false, Help: "modelName to Announce", Default: "go-client"})
 	vendorName := p.String("", "vendorName", &argparse.Options{Required: false, Help: "vendorName to Announce", Default: "go-client"})
+
+	tasmotaDisabled := p.Flag("", "tasmotaDisabled", &argparse.Options{Required: false, Help: "disable Tasmota discovery"})
+	shellyDisabled := p.Flag("", "shellyDisabled", &argparse.Options{Required: false, Help: "disable Shelly discovery"})
 
 	err := p.Parse(os.Args)
 	if err != nil {
@@ -34,6 +37,8 @@ func main() {
 	if config.mqttHost != "" {
 		config.mqttDiscoveryEnabled = true
 	}
+	config.shellyDisabled = *shellyDisabled
+	config.tasmotaDisabled = *tasmotaDisabled
 
 	vcdcbrige := new(VcdcBridge)
 	vcdcbrige.NewVcdcBrige(*config)
