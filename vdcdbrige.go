@@ -86,6 +86,10 @@ func (e *VcdcBridge) startDiscovery() {
 				log.Println(token.Error())
 			}
 
+			if token := e.mqttClient.Subscribe("shellies/+/info", 0, nil); token.Wait() && token.Error() != nil {
+				log.Println(token.Error())
+			}
+
 			if token := e.mqttClient.Publish("shellies/command", 0, false, "announce"); token.Wait() && token.Error() != nil {
 				log.Println(token.Error())
 			}
@@ -127,7 +131,6 @@ func (e *VcdcBridge) mqttCallback() mqtt.MessageHandler {
 				device.SetChannelMessageCB(e.deviceCallback())
 				device.ModelName = tasmotaDevice.Module
 				device.ModelVersion = tasmotaDevice.SoftwareVersion
-				device.SetChannelMessageCB(e.deviceCallback())
 				device.SourceDevice = tasmotaDevice
 
 				e.vcdcClient.AddDevice(device)
@@ -143,6 +146,8 @@ func (e *VcdcBridge) mqttCallback() mqtt.MessageHandler {
 				log.Print("Unmarshal to Shelly Device failed\n", err.Error())
 				return
 			}
+
+			shellyDevice.NewShellyDevice(e.mqttClient)
 
 			log.Printf("Shelly Device: Name: %s, IP: %s, Mac %s\n", shellyDevice.Id, shellyDevice.IPAddress, shellyDevice.MACAddress)
 
@@ -163,7 +168,9 @@ func (e *VcdcBridge) mqttCallback() mqtt.MessageHandler {
 			}
 
 		}
-
+		if strings.Contains(msg.Topic(), "shellies") && strings.Contains(msg.Topic(), "info") {
+			log.Println("Shelly info found", string(msg.Payload()))
+		}
 	}
 
 	return f
