@@ -1,6 +1,6 @@
-module github.com/splattner/go-vdcd-api-client
+module github.com/splattner/vdcd-bridge
 
-go 1.14
+go 1.16
 
 require (
 	github.com/akamensky/argparse v1.3.0

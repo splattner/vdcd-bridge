@@ -17,4 +17,4 @@
 .vscode/
 
 __debug_bin
-go-vdcd-api-client
+vdcd-bridge

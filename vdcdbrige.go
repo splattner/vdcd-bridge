@@ -9,8 +9,8 @@ import (
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"github.com/splattner/go-vdcd-api-client/pkg/discovery"
-	"github.com/splattner/go-vdcd-api-client/pkg/vdcdapi"
+	"github.com/splattner/vdcd-bridge/pkg/discovery"
+	"github.com/splattner/vdcd-bridge/pkg/vdcdapi"
 )
 
 type VcdcBridgeConfig struct {
