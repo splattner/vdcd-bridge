@@ -40,13 +40,13 @@ Clone the vdcd-bridge Project
 Build the binary:
 
 ```
-cd vcdc-brige
+cd vdcd-bridge
 go build .
 ```
 
 Start the vdcd bridge:
 
-`./vcdc-brige -H ipofvdcdhost --mqtthost ip:portmqttbroker`
+`./vcdc-bridge -H ipofvdcdhost --mqtthost ip:portmqttbroker`
 
 or as a container:
 
@@ -56,4 +56,4 @@ Build the container:
 
 Start the vcdc-brige as a container:
 
-`docker run myimagename vcdc-brige -H ipofvdcdhost --mqtthost ip:portmqttbroker`
+`docker run myimagename vdcd-bridge -H ipofvdcdhost --mqtthost ip:portmqttbroker`
