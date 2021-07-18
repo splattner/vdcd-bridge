@@ -46,4 +46,14 @@ go build .
 
 Start the vdcd bridge:
 
-`./go-vdcd-api-client -H ipofvdcdhost --mqtthost ip:portmqttbroker`
+`./vcdc-brige -H ipofvdcdhost --mqtthost ip:portmqttbroker`
+
+or as a container:
+
+Build the container:
+
+`docker build -t myimagename .`
+
+Start the vcdc-brige as a container:
+
+`docker run myimagename vcdc-brige -H ipofvdcdhost --mqtthost ip:portmqttbroker`
