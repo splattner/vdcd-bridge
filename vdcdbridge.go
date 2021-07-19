@@ -117,23 +117,28 @@ func (e *VcdcBridge) mqttCallback() mqtt.MessageHandler {
 				return
 			}
 
+			tasmotaDevice.NewTasmotaDevice(e.mqttClient)
+
 			log.Printf("Tasmota Device: Name: %s, FriendlyName: %s, IP: %s, Mac %s\n", tasmotaDevice.DeviceName, tasmotaDevice.FriendlyName[0], tasmotaDevice.IPAddress, tasmotaDevice.MACAddress)
 
 			_, notfounderr := e.vcdcClient.GetDeviceByUniqueId(tasmotaDevice.MACAddress)
 
 			if notfounderr != nil {
 				// not found
-				log.Printf("Device not found in vcdc -> Adding \n")
+				log.Printf("Tasmota Device not found in vcdc -> Adding \n")
 
 				device := vdcdapi.Device{}
-				device.NewDevice(*e.vcdcClient, tasmotaDevice.MACAddress)
+				device.NewLightDevice(*e.vcdcClient, tasmotaDevice.MACAddress, false)
 				device.SetName(tasmotaDevice.FriendlyName[0])
 				device.SetChannelMessageCB(e.deviceCallback())
 				device.ModelName = tasmotaDevice.Module
 				device.ModelVersion = tasmotaDevice.SoftwareVersion
 				device.SourceDevice = tasmotaDevice
 
+				tasmotaDevice.SetOriginDevice(device)
+
 				e.vcdcClient.AddDevice(device)
+
 			}
 		}
 
@@ -155,22 +160,40 @@ func (e *VcdcBridge) mqttCallback() mqtt.MessageHandler {
 
 			if notfounderr != nil {
 				// not found
-				log.Printf("Device not found in vcdc -> Adding \n")
+				log.Printf("Shelly Device not found in vcdc -> Adding \n")
 
 				device := vdcdapi.Device{}
-				device.NewDevice(*e.vcdcClient, shellyDevice.MACAddress)
+				device.NewLightDevice(*e.vcdcClient, shellyDevice.MACAddress, false)
 				device.SetName(shellyDevice.Id)
 				device.SetChannelMessageCB(e.deviceCallback())
 				device.ModelVersion = shellyDevice.FirmewareVersion
 				device.SourceDevice = shellyDevice
 
+				button := new(vdcdapi.Button)
+				button.LocalButton = true
+				button.Id = "input0"
+				button.ButtonType = vdcdapi.SingleButton
+				button.Group = vdcdapi.YellowLightGroup
+				button.HardwareName = "toggle"
+
+				device.AddButton(*button)
+
+				shellyDevice.SetOriginDevice(device)
+
+				// Add callback for this device
+				shellytopic := fmt.Sprintf("shellies/%s/#", shellyDevice.Id)
+				if token := e.mqttClient.Subscribe(shellytopic, 0, shellyDevice.MqttCallback()); token.Wait() && token.Error() != nil {
+					log.Println(token.Error())
+				}
+
 				e.vcdcClient.AddDevice(device)
+
 			}
 
 		}
-		if strings.Contains(msg.Topic(), "shellies") && strings.Contains(msg.Topic(), "info") {
-			log.Println("Shelly info found", string(msg.Payload()))
-		}
+		// if strings.Contains(msg.Topic(), "shellies") && strings.Contains(msg.Topic(), "info") {
+		// 	log.Println("Shelly info found", string(msg.Payload()))
+		// }
 	}
 
 	return f
@@ -181,8 +204,20 @@ func (e *VcdcBridge) deviceCallback() func(message *vdcdapi.GenericVDCDMessage, 
 	var f func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) = func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
 		log.Printf("Call Back called for Device %s\n", device.UniqueID)
 
-		sourceDevice := device.SourceDevice.(discovery.TasmotaDevice)
-		sourceDevice.SetValue(message.Value)
+		switch device.SourceDevice.(type) {
+		case discovery.ShellyDevice:
+
+			sourceDevice := device.SourceDevice.(discovery.ShellyDevice)
+			sourceDevice.SetValue(message.Value)
+		case discovery.TasmotaDevice:
+
+			sourceDevice := device.SourceDevice.(discovery.TasmotaDevice)
+			sourceDevice.SetValue(message.Value)
+		default:
+
+			log.Printf("Device not implemented")
+		}
+
 	}
 
 	return f

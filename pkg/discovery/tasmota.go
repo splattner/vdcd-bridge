@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+
+	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/splattner/vdcd-bridge/pkg/vdcdapi"
 )
 
 type TasmotaDevice struct {
@@ -31,6 +34,18 @@ type TasmotaDevice struct {
 	LightSubtype    int            `json:"lt_st,omitempty"`
 	ShutterOptions  []int          `json:"sho,omitempty"`
 	Version         int            `json:"ver,omitempty"`
+
+	mqttClient   mqtt.Client
+	originDevice vdcdapi.Device
+}
+
+func (e *TasmotaDevice) NewTasmotaDevice(mqttClient mqtt.Client) {
+	e.mqttClient = mqttClient
+
+}
+
+func (e *TasmotaDevice) SetOriginDevice(originDevice vdcdapi.Device) {
+	e.originDevice = originDevice
 }
 
 func (e *TasmotaDevice) SetValue(value float32) {

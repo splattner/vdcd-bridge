@@ -134,12 +134,13 @@ func (e *Client) sentInitMessage() {
 			e.devices[i].Tag = e.devices[i].UniqueID
 		}
 
-		if e.devices[i].initDone {
+		if e.devices[i].InitDone {
 			continue
 		}
 
+		e.devices[i].SetInitDone()
 		deviceForInit = append(deviceForInit, e.devices[i])
-		e.devices[i].initDone = true
+
 	}
 
 	if len(deviceForInit) > 1 {
@@ -150,6 +151,7 @@ func (e *Client) sentInitMessage() {
 		for i := 0; i < len(deviceForInit); i++ {
 			initMessage := DeviceInitMessage{GenericInitMessageHeader{GenericMessageHeader{MessageType: "init"}, "json"}, deviceForInit[i]}
 			initMessages = append(initMessages, initMessage)
+
 		}
 		e.sendMessage(initMessages)
 
@@ -158,7 +160,6 @@ func (e *Client) sentInitMessage() {
 	if len(deviceForInit) == 1 {
 		// Only One Init Message
 		initMessage := DeviceInitMessage{GenericInitMessageHeader{GenericMessageHeader{MessageType: "init"}, "json"}, deviceForInit[0]}
-
 		e.sendMessage(initMessage)
 	} else {
 		log.Println("Cannot initialize, no devices added")
@@ -291,11 +292,15 @@ func (e *Client) sendByeMessage() {
 	e.sendMessage(byeMessage)
 }
 
-func (e *Client) sendChannelMessageByIndex(index int, value float32, tag string) {
-	log.Println("Sending Channel Message byIndex")
+func (e *Client) sendChannelMessageByTag(value float32, tag string) {
+	log.Println("Sending Channel Message by Tag")
 
-	channelMessage := GenericDeviceMessage{GenericMessageHeader: GenericMessageHeader{MessageType: "channel"}, GenericDeviceMessageFields: GenericDeviceMessageFields{Index: index, Value: value, Tag: tag}}
+	channelMessageHeader := GenericMessageHeader{MessageType: "channel"}
+	channelMessageFields := GenericDeviceMessageFields{Value: value, Tag: tag}
+	channelMessage := GenericDeviceMessage{channelMessageHeader, channelMessageFields}
 
+	payload, _ := json.Marshal(channelMessage)
+	log.Println(string(payload))
 	e.sendMessage(channelMessage)
 }
 
@@ -346,8 +351,11 @@ func (e *Client) getDeviceIndex(device Device) (*int, error) {
 }
 
 func (e *Client) UpdateValue(device Device) {
+	log.Printf("Update value for Device %s: %f, Init done: %t", device.UniqueID, device.value, device.InitDone)
 
-	index, _ := e.getDeviceIndex(device)
+	// Make sure init is Done for the device
+	if device.InitDone {
+		e.sendChannelMessageByTag(device.value, device.Tag)
+	}
 
-	e.sendChannelMessageByIndex(*index, device.value, device.Tag)
 }

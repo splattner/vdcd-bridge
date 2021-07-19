@@ -1,7 +1,10 @@
 package vdcdapi
 
+import "log"
+
 func (e *Device) NewDevice(client Client, uniqueID string) {
 	e.UniqueID = uniqueID
+	e.Tag = uniqueID
 	e.Output = BasicOutput
 
 	e.client = client
@@ -9,9 +12,15 @@ func (e *Device) NewDevice(client Client, uniqueID string) {
 	e.VendorName = e.client.vendorName
 }
 
-func (e *Device) NewLightDevice(client Client, uniqueID string) {
+func (e *Device) NewLightDevice(client Client, uniqueID string, dimmable bool) {
 	e.NewDevice(client, uniqueID)
-	e.Output = LightOutput
+
+	if dimmable {
+		e.Output = LightOutput
+	}
+
+	e.Group = YellowLightGroup
+	e.ColorClass = YellowColorClassT
 }
 
 func (e *Device) SetName(name string) {
@@ -41,9 +50,18 @@ func (e *Device) AddInput(input Input) {
 }
 
 func (e *Device) UpdateValue(newValue float32) {
-	e.value = newValue
 
-	e.client.UpdateValue(*e)
+	// only update when changed
+	if newValue != e.value {
+		e.value = newValue
+		e.client.UpdateValue(*e)
+	}
+
+}
+
+func (e *Device) SetInitDone() {
+	e.InitDone = true
+	log.Printf("Init for Device %s done: %t\n", e.UniqueID, e.InitDone)
 }
 
 func (e *Device) SetChannelMessageCB(cb func(message *GenericVDCDMessage, device *Device)) {

@@ -267,7 +267,7 @@ type Device struct {
 	value        float32
 	client       Client
 	channel_cb   func(message *GenericVDCDMessage, device *Device)
-	initDone     bool
+	InitDone     bool
 	SourceDevice interface{}
 }
 
