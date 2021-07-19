@@ -269,6 +269,13 @@ type Device struct {
 	channel_cb   func(message *GenericVDCDMessage, device *Device)
 	InitDone     bool
 	SourceDevice interface{}
+	Channels     []Channel
+}
+
+type Channel struct {
+	ChannelName string
+	ChannelType ChannelTypeType
+	Value       float32
 }
 
 type Button struct {

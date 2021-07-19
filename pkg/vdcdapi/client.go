@@ -207,7 +207,7 @@ func (e *Client) processStatusMessage(message *GenericVDCDMessage) {
 }
 
 func (e *Client) processChannelMessage(message *GenericVDCDMessage) {
-	log.Debugf("Channel Message. Index: %d, ChannelType: %d, Id: %s, Value: %f, Tag: %s\n", message.Index, message.ChannelType, message.ChannelName, message.Value, message.Tag)
+	log.Debugf("Channel Message. Index: %d, ChannelType: %d, ChannelName: %s, Value: %f, Tag: %s\n", message.Index, message.ChannelType, message.ChannelName, message.Value, message.Tag)
 
 	// Multiple Devices available, identify by Tag
 	if len(e.devices) > 1 {
@@ -218,7 +218,7 @@ func (e *Client) processChannelMessage(message *GenericVDCDMessage) {
 			return
 		}
 
-		log.Debugf("Device found by Tag %s for Channel Message: %s\n", message.Tag, device.UniqueID)
+		log.Debugf("Device found by Tag for Channel Message: %s\n", device.UniqueID)
 
 		if device.channel_cb != nil {
 			log.Debugf("Callback for Device %s set, calling it\n", device.UniqueID)
@@ -347,11 +347,18 @@ func (e *Client) getDeviceIndex(device Device) (*int, error) {
 
 // Send a channel message to the vdcd for the given ChannelName and ChannelType
 func (e *Client) UpdateValue(device *Device, channelName string, channelType ChannelTypeType) {
-	log.Infof("Update value for Device %s: %f, ChannelName %s, ChannelType %d, Init done: %t\n", device.UniqueID, device.value, channelName, channelType, device.InitDone)
+
+	value, err := device.GetValue(channelName)
+
+	if err != nil {
+		log.Errorf("Value for Device %s on Channel %s not found\n", device.UniqueID, channelName)
+	}
+
+	log.Infof("Update value for Device %s: %f, ChannelName %s, ChannelType %d, Init done: %t\n", device.UniqueID, value, channelName, channelType, device.InitDone)
 
 	// Make sure init is Done for the device
 	if device.InitDone {
-		e.sendChannelMessage(device.value, device.Tag, channelName, channelType)
+		e.sendChannelMessage(value, device.Tag, channelName, channelType)
 	}
 
 }

@@ -1,0 +1,8 @@
+{
+    "id": "shelly1-2BE223",
+    "model": "SHSW-1",
+    "mac": "3C71BF2BE223",
+    "ip": "192.168.12.216",
+    "new_fw": false,
+    "fw_ver": "20210429-100340/v1.10.4-g3f94cd7"
+}
