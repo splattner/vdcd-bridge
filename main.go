@@ -5,9 +5,16 @@ import (
 	"os"
 
 	"github.com/akamensky/argparse"
+	log "github.com/sirupsen/logrus"
 )
 
+const envLogLevel = "LOG_LEVEL"
+const defaultLogLevel = log.InfoLevel
+
 func main() {
+
+	logLevel := getLogLevel()
+	log.SetLevel(logLevel)
 
 	p := argparse.NewParser("vdcd", "Use Tasmota/Shelly as exernal device for a plan44.ch vdcd")
 
@@ -43,4 +50,19 @@ func main() {
 	vcdcbrige := new(VcdcBridge)
 	vcdcbrige.NewVcdcBrige(*config)
 
+}
+
+func getLogLevel() log.Level {
+	levelString, exists := os.LookupEnv(envLogLevel)
+	if !exists {
+		return defaultLogLevel
+	}
+
+	level, err := log.ParseLevel(levelString)
+	if err != nil {
+		log.Errorf("error parsing %s: %v", envLogLevel, err)
+		return defaultLogLevel
+	}
+
+	return level
 }

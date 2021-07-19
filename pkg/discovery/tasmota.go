@@ -1,11 +1,11 @@
 package discovery
 
 import (
-	"fmt"
-	"log"
-	"net/http"
+	"encoding/json"
+	"strings"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	log "github.com/sirupsen/logrus"
 	"github.com/splattner/vdcd-bridge/pkg/vdcdapi"
 )
 
@@ -36,7 +36,11 @@ type TasmotaDevice struct {
 	Version         int            `json:"ver,omitempty"`
 
 	mqttClient   mqtt.Client
-	originDevice vdcdapi.Device
+	originDevice *vdcdapi.Device
+}
+
+type TasmotaPowerMsg struct {
+	Power1 string `json:"POWER1,omitempty"`
 }
 
 func (e *TasmotaDevice) NewTasmotaDevice(mqttClient mqtt.Client) {
@@ -44,21 +48,56 @@ func (e *TasmotaDevice) NewTasmotaDevice(mqttClient mqtt.Client) {
 
 }
 
-func (e *TasmotaDevice) SetOriginDevice(originDevice vdcdapi.Device) {
+func (e *TasmotaDevice) SetOriginDevice(originDevice *vdcdapi.Device) {
 	e.originDevice = originDevice
 }
 
+// Apply update from dss to shelly
 func (e *TasmotaDevice) SetValue(value float32) {
 
-	var urlOn = "http://%s/cm?cmnd=Power%%20On"
-	var urlOff = "http://%s/cm?cmnd=Power%%20Off"
+	log.Infof("Set Value for Tasmota Device %s %s to %f\n", e.DeviceName, e.FriendlyName[0], value)
 
-	if value == 100 {
-		log.Printf("Calling On for Device %s\n", e.FriendlyName)
-		http.Get(fmt.Sprintf(urlOn, e.IPAddress))
-	} else {
-		log.Printf("Calling Off for Device %s\n", e.FriendlyName)
-		http.Get(fmt.Sprintf(urlOff, e.IPAddress))
+	// Also sync the state with originDevice
+	if e.originDevice != nil { // should not happen!
+		e.originDevice.SetValue(value)
 	}
 
+	if value == 100 {
+		if token := e.mqttClient.Publish("cmnd/"+e.Topic+"/POWER", 0, false, "on"); token.Wait() && token.Error() != nil {
+			log.Errorln("MQTT publish failed", token.Error())
+		}
+	} else {
+		if token := e.mqttClient.Publish("cmnd/"+e.Topic+"/POWER", 0, false, "off"); token.Wait() && token.Error() != nil {
+			log.Errorln("MQTT publish failed", token.Error())
+		}
+	}
+
+}
+
+func (e *TasmotaDevice) MqttCallback() mqtt.MessageHandler {
+
+	var f mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
+
+		log.Debugf("Tasmota MQTT Message for %s, Topic %s, Message %s", e.DeviceName, string(msg.Topic()), string(msg.Payload()))
+
+		if strings.Contains(msg.Topic(), "RESULT") {
+
+			var powerMesage TasmotaPowerMsg
+			err := json.Unmarshal(msg.Payload(), &powerMesage)
+			if err != nil {
+				log.Errorf("Unmarshal to TasmotaPowerMsg failed\n", err.Error())
+				return
+			}
+
+			if powerMesage.Power1 == "ON" {
+				e.originDevice.UpdateValue(100, "basic switch", vdcdapi.UndefinedType)
+			}
+			if powerMesage.Power1 == "OFF" {
+				e.originDevice.UpdateValue(0, "basic switch", vdcdapi.UndefinedType)
+			}
+		}
+
+	}
+
+	return f
 }

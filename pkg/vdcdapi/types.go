@@ -8,7 +8,7 @@ type OutputType string
 type InputType int
 type UsageType int
 type SensorType int
-type ChanelTypeType int
+type ChannelTypeType int
 
 const (
 	NotDefinedButton ButtonType = iota
@@ -143,7 +143,7 @@ const (
 )
 
 const (
-	UndefinedType ChanelTypeType = iota
+	UndefinedType ChannelTypeType = iota
 	BrightnessType
 	HueType
 	SaturationType
@@ -188,13 +188,13 @@ type GenericVDCDMessage struct {
 }
 
 type GenericVCDCMessageFields struct {
-	Protocol    string         `json:"protocol,omitempty"`
-	Tag         string         `json:"tag,omitempty"`
-	Text        string         `json:"text,omitempty"`
-	Index       int            `json:"index,omitempty"`
-	ChannelName string         `json:"id,omitempty"`
-	Value       float32        `json:"value,omitempty"`
-	ChannelType ChanelTypeType `json:"type,omitempty"`
+	Protocol    string          `json:"protocol,omitempty"`
+	Tag         string          `json:"tag,omitempty"`
+	Text        string          `json:"text,omitempty"`
+	Index       int             `json:"index,omitempty"`
+	ChannelName string          `json:"id,omitempty"`
+	Value       float32         `json:"value,omitempty"`
+	ChannelType ChannelTypeType `json:"type,omitempty"`
 }
 
 type GenericMessageHeader struct {
@@ -207,12 +207,12 @@ type GenericInitMessageHeader struct {
 }
 
 type GenericDeviceMessageFields struct {
-	Tag         string         `json:"tag,omitempty"`
-	Text        string         `json:"text,omitempty"`
-	Index       int            `json:"index,omitempty"`
-	ChannelName string         `json:"id,omitempty"`
-	Value       float32        `json:"value,omitempty"`
-	ChannelType ChanelTypeType `json:"type,omitempty"`
+	Tag         string          `json:"tag,omitempty"`
+	Text        string          `json:"text,omitempty"`
+	Index       int             `json:"index"`
+	ChannelName string          `json:"id"`
+	Value       float32         `json:"value"`
+	ChannelType ChannelTypeType `json:"type"`
 }
 
 type GenericDeviceMessage struct {
@@ -265,7 +265,7 @@ type Device struct {
 	Properties             map[string]Property       `json:"properties,omitempty"`
 
 	value        float32
-	client       Client
+	client       *Client
 	channel_cb   func(message *GenericVDCDMessage, device *Device)
 	InitDone     bool
 	SourceDevice interface{}

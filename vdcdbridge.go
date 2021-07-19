@@ -3,12 +3,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+
 	"strings"
 	"sync"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	log "github.com/sirupsen/logrus"
 	"github.com/splattner/vdcd-bridge/pkg/discovery"
 	"github.com/splattner/vdcd-bridge/pkg/vdcdapi"
 )
@@ -43,21 +44,23 @@ func (e *VcdcBridge) NewVcdcBrige(config VcdcBridgeConfig) {
 	e.vcdcClient.Connect()
 	defer e.vcdcClient.Close()
 
+	// Configure MQTT Client if enabled
 	if config.mqttDiscoveryEnabled {
-		log.Printf("Connecting to MQTT Host: %s\n", config.mqttHost)
+		log.Infof("Connecting to MQTT Host: %s\n", config.mqttHost)
 
 		mqttBroker := fmt.Sprintf("tcp://%s", config.mqttHost)
 		opts := mqtt.NewClientOptions().AddBroker(mqttBroker).SetClientID("vdcd_cient")
 		opts.SetKeepAlive(60 * time.Second)
 		opts.SetDefaultPublishHandler(e.mqttCallback())
 		opts.SetPingTimeout(1 * time.Second)
+		opts.SetProtocolVersion(3)
+		opts.SetOrderMatters(false)
 
 		e.mqttClient = mqtt.NewClient(opts)
 	}
 
-	e.wg.Add(1)
+	e.wg.Add(2)
 	go e.startDiscovery()
-	e.wg.Add(1)
 	go e.loopVcdcClient()
 	e.wg.Wait()
 
@@ -68,14 +71,13 @@ func (e *VcdcBridge) startDiscovery() {
 	if e.config.mqttDiscoveryEnabled {
 
 		if token := e.mqttClient.Connect(); token.Wait() && token.Error() != nil {
-			log.Printf("MQTT failed\n")
-			log.Println(token.Error())
+			log.Error("MQTT connect failed: ", token.Error())
 		}
 
 		// Tasmota Device Discovery
 		if !e.config.tasmotaDisabled {
 			if token := e.mqttClient.Subscribe("tasmota/discovery/#", 0, nil); token.Wait() && token.Error() != nil {
-				log.Println(token.Error())
+				log.Error("MQTT subscribe failed: ", token.Error())
 			}
 		}
 
@@ -83,52 +85,57 @@ func (e *VcdcBridge) startDiscovery() {
 		if !e.config.shellyDisabled {
 
 			if token := e.mqttClient.Subscribe("shellies/announce", 0, nil); token.Wait() && token.Error() != nil {
-				log.Println(token.Error())
+				log.Error("MQTT subscribe failed: ", token.Error())
 			}
 
 			if token := e.mqttClient.Subscribe("shellies/+/info", 0, nil); token.Wait() && token.Error() != nil {
-				log.Println(token.Error())
+				log.Error("MQTT subscribe failed: ", token.Error())
 			}
 
 			if token := e.mqttClient.Publish("shellies/command", 0, false, "announce"); token.Wait() && token.Error() != nil {
-				log.Println(token.Error())
+				log.Error("MQTT publish failed: ", token.Error())
 			}
 		}
 	}
 
+	e.wg.Done()
+
 }
 
 func (e *VcdcBridge) loopVcdcClient() {
-	go e.vcdcClient.Listen()
-
+	e.vcdcClient.Listen()
+	e.wg.Done()
 }
 
 func (e *VcdcBridge) mqttCallback() mqtt.MessageHandler {
 
 	var f mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
 
+		log.Debugf("MQTT Mesage: %s: %s\n", string(msg.Topic()), string(msg.Payload()))
+
 		// Tasmota Device Discovery
 		if strings.Contains(msg.Topic(), "tasmota") && strings.Contains(msg.Topic(), "config") {
 
-			var tasmotaDevice discovery.TasmotaDevice
+			tasmotaDevice := new(discovery.TasmotaDevice)
 			err := json.Unmarshal(msg.Payload(), &tasmotaDevice)
 			if err != nil {
-				log.Print("Unmarshal to Tasmota Device failed\n", err.Error())
+				log.Error("Unmarshal to Tasmota Device failed\n", err.Error())
 				return
 			}
 
 			tasmotaDevice.NewTasmotaDevice(e.mqttClient)
 
-			log.Printf("Tasmota Device: Name: %s, FriendlyName: %s, IP: %s, Mac %s\n", tasmotaDevice.DeviceName, tasmotaDevice.FriendlyName[0], tasmotaDevice.IPAddress, tasmotaDevice.MACAddress)
+			log.Infof("Tasmota Device discovered: Name: %s, FriendlyName: %s, IP: %s, Mac %s\n", tasmotaDevice.DeviceName, tasmotaDevice.FriendlyName[0], tasmotaDevice.IPAddress, tasmotaDevice.MACAddress)
 
 			_, notfounderr := e.vcdcClient.GetDeviceByUniqueId(tasmotaDevice.MACAddress)
 
 			if notfounderr != nil {
 				// not found
-				log.Printf("Tasmota Device not found in vcdc -> Adding \n")
+				log.Debugf("Tasmota Device %s not found in vcdc\n", tasmotaDevice.FriendlyName[0])
 
-				device := vdcdapi.Device{}
-				device.NewLightDevice(*e.vcdcClient, tasmotaDevice.MACAddress, false)
+				log.Debugf("Prepare Device %s\n", tasmotaDevice.FriendlyName[0])
+				device := new(vdcdapi.Device)
+				device.NewLightDevice(e.vcdcClient, tasmotaDevice.MACAddress, false)
 				device.SetName(tasmotaDevice.FriendlyName[0])
 				device.SetChannelMessageCB(e.deviceCallback())
 				device.ModelName = tasmotaDevice.Module
@@ -137,6 +144,14 @@ func (e *VcdcBridge) mqttCallback() mqtt.MessageHandler {
 
 				tasmotaDevice.SetOriginDevice(device)
 
+				// Add callback for this device
+				topic := fmt.Sprintf("stat/%s/#", tasmotaDevice.Topic)
+				log.Debugf("Subscribe to stats topic %s for device updates\n", topic)
+				if token := e.mqttClient.Subscribe(topic, 0, tasmotaDevice.MqttCallback()); token.Wait() && token.Error() != nil {
+					log.Error("MQTT subscribe failed: ", token.Error())
+				}
+
+				log.Debugf("Adding Tasmota Device %s to vcdc\n", tasmotaDevice.FriendlyName[0])
 				e.vcdcClient.AddDevice(device)
 
 			}
@@ -145,25 +160,25 @@ func (e *VcdcBridge) mqttCallback() mqtt.MessageHandler {
 		// Shelly Device discovery
 		if strings.Contains(msg.Topic(), "shellies") && strings.Contains(msg.Topic(), "announce") {
 
-			var shellyDevice discovery.ShellyDevice
+			shellyDevice := new(discovery.ShellyDevice)
 			err := json.Unmarshal(msg.Payload(), &shellyDevice)
 			if err != nil {
-				log.Print("Unmarshal to Shelly Device failed\n", err.Error())
+				log.Errorf("Unmarshal to Shelly Device failed\n", err.Error())
 				return
 			}
 
 			shellyDevice.NewShellyDevice(e.mqttClient)
 
-			log.Printf("Shelly Device: Name: %s, IP: %s, Mac %s\n", shellyDevice.Id, shellyDevice.IPAddress, shellyDevice.MACAddress)
+			log.Infof("Shelly Device discovered: Name: %s, IP: %s, Mac %s\n", shellyDevice.Id, shellyDevice.IPAddress, shellyDevice.MACAddress)
 
 			_, notfounderr := e.vcdcClient.GetDeviceByUniqueId(shellyDevice.MACAddress)
 
 			if notfounderr != nil {
 				// not found
-				log.Printf("Shelly Device not found in vcdc -> Adding \n")
+				log.Debugf("Shelly Device not found in vcdc -> Adding \n")
 
-				device := vdcdapi.Device{}
-				device.NewLightDevice(*e.vcdcClient, shellyDevice.MACAddress, false)
+				device := new(vdcdapi.Device)
+				device.NewLightDevice(e.vcdcClient, shellyDevice.MACAddress, false)
 				device.SetName(shellyDevice.Id)
 				device.SetChannelMessageCB(e.deviceCallback())
 				device.ModelVersion = shellyDevice.FirmewareVersion
@@ -181,9 +196,9 @@ func (e *VcdcBridge) mqttCallback() mqtt.MessageHandler {
 				shellyDevice.SetOriginDevice(device)
 
 				// Add callback for this device
-				shellytopic := fmt.Sprintf("shellies/%s/#", shellyDevice.Id)
-				if token := e.mqttClient.Subscribe(shellytopic, 0, shellyDevice.MqttCallback()); token.Wait() && token.Error() != nil {
-					log.Println(token.Error())
+				topic := fmt.Sprintf("shellies/%s/#", shellyDevice.Id)
+				if token := e.mqttClient.Subscribe(topic, 0, shellyDevice.MqttCallback()); token.Wait() && token.Error() != nil {
+					log.Error("MQTT subscribe failed: ", token.Error())
 				}
 
 				e.vcdcClient.AddDevice(device)
@@ -202,20 +217,20 @@ func (e *VcdcBridge) mqttCallback() mqtt.MessageHandler {
 func (e *VcdcBridge) deviceCallback() func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
 
 	var f func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) = func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
-		log.Printf("Call Back called for Device %s\n", device.UniqueID)
+		log.Debugf("Call Back called for Device %s\n", device.UniqueID)
 
 		switch device.SourceDevice.(type) {
-		case discovery.ShellyDevice:
+		case *discovery.ShellyDevice:
 
-			sourceDevice := device.SourceDevice.(discovery.ShellyDevice)
+			sourceDevice := device.SourceDevice.(*discovery.ShellyDevice)
 			sourceDevice.SetValue(message.Value)
-		case discovery.TasmotaDevice:
+		case *discovery.TasmotaDevice:
 
-			sourceDevice := device.SourceDevice.(discovery.TasmotaDevice)
+			sourceDevice := device.SourceDevice.(*discovery.TasmotaDevice)
 			sourceDevice.SetValue(message.Value)
 		default:
 
-			log.Printf("Device not implemented")
+			log.Errorln("Device not implemented")
 		}
 
 	}

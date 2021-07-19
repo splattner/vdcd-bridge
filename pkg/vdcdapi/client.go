@@ -6,11 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Client struct {
@@ -24,7 +25,7 @@ type Client struct {
 
 	dialRetry int
 
-	devices []Device
+	devices []*Device
 
 	modelName  string
 	vendorName string
@@ -45,14 +46,14 @@ func (e *Client) Connect() {
 	var conn net.Conn
 	var err error
 
-	log.Println("Trying to connect to vcdc: " + connString)
+	log.Infof("Trying to connect to vcdc: %s\n", connString)
 
 	for i := 0; i < e.dialRetry; i++ {
 
 		conn, err = net.Dial("tcp", connString)
 
 		if err != nil {
-			log.Println("Dial failed:", err.Error())
+			log.Warn("Dial failed:", err.Error())
 			time.Sleep(time.Second)
 		} else {
 			break
@@ -61,11 +62,11 @@ func (e *Client) Connect() {
 	}
 
 	if conn == nil {
-		log.Println("Failed to connect to vcdc: " + connString)
+		log.Errorf("Failed to connect to vcdc: %s\n", connString)
 		os.Exit(1)
 	}
 
-	log.Println("Connected to vcdc: " + connString)
+	log.Infof("Connected to vcdc: %s", connString)
 
 	e.conn = conn
 	e.r = bufio.NewReader(e.conn)
@@ -75,20 +76,21 @@ func (e *Client) Connect() {
 func (e *Client) Close() {
 	e.Lock()
 	defer e.Unlock()
-	log.Println("Closing connection from vcdc")
+	log.Infoln("Closing connection from vcdc")
 	e.sendByeMessage()
 	e.conn.Close()
 }
 
 func (e *Client) Listen() {
 
-	log.Println("Start listening")
+	log.Infoln("Start listening for vcdc messages")
 
 	for {
+
 		line, err := e.r.ReadString('\n')
 
 		if err != nil {
-			log.Println("Failed to read: " + err.Error())
+			log.Errorln("Failed to read: ", err.Error())
 
 			if err == io.EOF {
 				// try to reconnect
@@ -102,7 +104,7 @@ func (e *Client) Listen() {
 		err = json.Unmarshal([]byte(line), &msg)
 
 		if err != nil {
-			log.Println("Json Unmarshal failed:", err.Error())
+			log.Errorln("Json Unmarshal failed:", err.Error())
 		}
 
 		e.processMessage(&msg)
@@ -111,7 +113,7 @@ func (e *Client) Listen() {
 
 }
 
-func (e *Client) AddDevice(device Device) {
+func (e *Client) AddDevice(device *Device) {
 
 	e.devices = append(e.devices, device)
 
@@ -123,10 +125,10 @@ func (e *Client) Initialize() {
 }
 
 func (e *Client) sentInitMessage() {
-	log.Println("Sending Init Message")
+	log.Debugln("Sending Init Message")
 
 	// Only init devices that are not already init
-	var deviceForInit []Device
+	var deviceForInit []*Device
 	for i := 0; i < len(e.devices); i++ {
 
 		// Tag required when multiple devices on same connection
@@ -149,7 +151,7 @@ func (e *Client) sentInitMessage() {
 		var initMessages []DeviceInitMessage
 
 		for i := 0; i < len(deviceForInit); i++ {
-			initMessage := DeviceInitMessage{GenericInitMessageHeader{GenericMessageHeader{MessageType: "init"}, "json"}, deviceForInit[i]}
+			initMessage := DeviceInitMessage{GenericInitMessageHeader{GenericMessageHeader{MessageType: "init"}, "json"}, *deviceForInit[i]}
 			initMessages = append(initMessages, initMessage)
 
 		}
@@ -159,10 +161,10 @@ func (e *Client) sentInitMessage() {
 
 	if len(deviceForInit) == 1 {
 		// Only One Init Message
-		initMessage := DeviceInitMessage{GenericInitMessageHeader{GenericMessageHeader{MessageType: "init"}, "json"}, deviceForInit[0]}
+		initMessage := DeviceInitMessage{GenericInitMessageHeader{GenericMessageHeader{MessageType: "init"}, "json"}, *deviceForInit[0]}
 		e.sendMessage(initMessage)
 	} else {
-		log.Println("Cannot initialize, no devices added")
+		log.Warnln("Cannot initialize, no devices added")
 		return
 	}
 }
@@ -201,58 +203,63 @@ func (e *Client) processMessage(message *GenericVDCDMessage) {
 }
 
 func (e *Client) processStatusMessage(message *GenericVDCDMessage) {
-	log.Printf("Status Message. Status %s, Error Message %s", message.Status, message.ErrorMessage)
+	log.Debugf("Status Message. Status: %s, Error Message: %s\n", message.Status, message.ErrorMessage)
 }
 
 func (e *Client) processChannelMessage(message *GenericVDCDMessage) {
-	log.Printf("Channel Message. Index: %d, ChannelType: %d, Id: %s, Value: %f, Tag: %s\n", message.Index, message.ChannelType, message.ChannelName, message.Value, message.Tag)
+	log.Debugf("Channel Message. Index: %d, ChannelType: %d, Id: %s, Value: %f, Tag: %s\n", message.Index, message.ChannelType, message.ChannelName, message.Value, message.Tag)
 
 	// Multiple Devices available, identify by Tag
 	if len(e.devices) > 1 {
 		device, err := e.GetDeviceByTag(message.Tag)
 
 		if err != nil {
-			log.Printf("Device not found by Tag %s\n", message.Tag)
+			log.Warnf("Device not found by Tag %s\n", message.Tag)
+			return
 		}
 
+		log.Debugf("Device found by Tag %s for Channel Message: %s\n", message.Tag, device.UniqueID)
+
 		if device.channel_cb != nil {
+			log.Debugf("Callback for Device %s set, calling it\n", device.UniqueID)
 			device.channel_cb(message, device)
 		}
 	} else {
 		// Only one device
 		if e.devices[0].channel_cb != nil {
-			e.devices[0].channel_cb(message, &e.devices[0])
+			log.Debugf("Callback for Device %s set, calling it\n", e.devices[0].UniqueID)
+			e.devices[0].channel_cb(message, e.devices[0])
 		}
 	}
 
 }
 
 func (e *Client) processMoveMessage(message *GenericVDCDMessage) {
-	log.Printf("Move Message. Index: %d, Direction: %d, Tag: %s\n", message.Index, message.Direction, message.Tag)
+	log.Debugf("Move Message. Index: %d, Direction: %d, Tag: %s\n", message.Index, message.Direction, message.Tag)
 }
 
 func (e *Client) processControlMessage(message *GenericVDCDMessage) {
-	log.Printf("Control Message. Name: %s, Value: %f, Tag: %s\n", message.Name, message.Value, message.Tag)
+	log.Debugf("Control Message. Name: %s, Value: %f, Tag: %s\n", message.Name, message.Value, message.Tag)
 }
 
 func (e *Client) processSyncMessage(message *GenericVDCDMessage) {
-	log.Printf("Sync Message. Tag: %s\n", message.Tag)
+	log.Debugf("Sync Message. Tag: %s\n", message.Tag)
 }
 
 func (e *Client) processSceneCommandMessage(message *GenericVDCDMessage) {
-	log.Printf("Scene Command Message. Cmd: %s Tag: %s\n", message.Cmd, message.Tag)
+	log.Debugf("Scene Command Message. Cmd: %s Tag: %s\n", message.Cmd, message.Tag)
 }
 
 func (e *Client) processSetConfigurationMessage(message *GenericVDCDMessage) {
-	log.Printf("Scene Command Message. ConfigID: %s Tag: %s\n", message.ConfigId, message.Tag)
+	log.Debugf("Scene Command Message. ConfigID: %s Tag: %s\n", message.ConfigId, message.Tag)
 }
 
 func (e *Client) processInvokeActionMessage(message *GenericVDCDMessage) {
-	log.Printf("Invoke Action Message. Params: %v Tag: %s\n", message.Params, message.Tag)
+	log.Debugf("Invoke Action Message. Params: %v Tag: %s\n", message.Params, message.Tag)
 }
 
 func (e *Client) processSetPropertyMessage(message *GenericVDCDMessage) {
-	log.Printf("Set Property Message. Property: %v Value: %f Tag: %s", message.Properties, message.Value, message.Tag)
+	log.Debugf("Set Property Message. Property: %v Value: %f Tag: %s", message.Properties, message.Value, message.Tag)
 }
 
 func (e *Client) sendMessage(message interface{}) {
@@ -260,10 +267,11 @@ func (e *Client) sendMessage(message interface{}) {
 	payload, err := json.Marshal(message)
 
 	if err != nil {
-		log.Println("Failed to Marshall object")
+		log.Errorln("Failed to Marshall object")
+		return
 	}
 
-	log.Println("Sending Message: " + string(payload))
+	//log.Println("Sending Message: " + string(payload))
 
 	e.Lock()
 	_, err = e.w.WriteString(string(payload))
@@ -278,52 +286,39 @@ func (e *Client) sendMessage(message interface{}) {
 	e.Unlock()
 
 	if err != nil {
-		log.Println("Send Message failed:", err.Error())
-		os.Exit(1)
+		log.Errorln("Send Message failed:", err.Error())
+		return
 	}
 
 }
 
 func (e *Client) sendByeMessage() {
-	log.Println("Sending Bye Message")
+	log.Infoln("Closing, sending Bye Message")
 
 	byeMessage := GenericDeviceMessage{GenericMessageHeader: GenericMessageHeader{MessageType: "bye"}}
 
 	e.sendMessage(byeMessage)
 }
 
-func (e *Client) sendChannelMessageByTag(value float32, tag string) {
-	log.Println("Sending Channel Message by Tag")
-
+func (e *Client) sendChannelMessage(value float32, tag string, channelName string, channelType ChannelTypeType) {
 	channelMessageHeader := GenericMessageHeader{MessageType: "channel"}
-	channelMessageFields := GenericDeviceMessageFields{Value: value, Tag: tag}
+	channelMessageFields := GenericDeviceMessageFields{Tag: tag, ChannelName: channelName, Value: value, ChannelType: channelType}
 	channelMessage := GenericDeviceMessage{channelMessageHeader, channelMessageFields}
 
-	payload, _ := json.Marshal(channelMessage)
-	log.Println(string(payload))
+	payload, err := json.Marshal(channelMessage)
+	if err != nil {
+		log.Errorln("Failed to Marshall object", err.Error())
+		return
+	}
+
+	log.Debugf("Channel Message: %s\n", string(payload))
 	e.sendMessage(channelMessage)
-}
-
-func (e *Client) sendChannelMessageByChannelName(channelName string, value float32, tag string) {
-	log.Println("Sending Channel Message by ChannelName")
-
-	channelMessage := GenericDeviceMessage{GenericMessageHeader: GenericMessageHeader{MessageType: "channel"}, GenericDeviceMessageFields: GenericDeviceMessageFields{ChannelName: channelName, Value: value, Tag: tag}}
-	e.sendMessage(channelMessage)
-
-}
-
-func (e *Client) sendChannelMessageByChannelType(channelType ChanelTypeType, value float32, tag string) {
-	log.Println("Sending Channel Message by Type")
-
-	channelMessage := GenericDeviceMessage{GenericMessageHeader: GenericMessageHeader{MessageType: "channel"}, GenericDeviceMessageFields: GenericDeviceMessageFields{ChannelType: channelType, Value: value, Tag: tag}}
-	e.sendMessage(channelMessage)
-
 }
 
 func (e *Client) GetDeviceByUniqueId(uniqueid string) (*Device, error) {
 	for i := 0; i < len(e.devices); i++ {
 		if e.devices[i].UniqueID == uniqueid {
-			return &e.devices[i], nil
+			return e.devices[i], nil
 		}
 	}
 
@@ -333,7 +328,7 @@ func (e *Client) GetDeviceByUniqueId(uniqueid string) (*Device, error) {
 func (e *Client) GetDeviceByTag(tag string) (*Device, error) {
 	for i := 0; i < len(e.devices); i++ {
 		if e.devices[i].Tag == tag {
-			return &e.devices[i], nil
+			return e.devices[i], nil
 		}
 	}
 
@@ -350,12 +345,13 @@ func (e *Client) getDeviceIndex(device Device) (*int, error) {
 	return nil, errors.New(("Device not found"))
 }
 
-func (e *Client) UpdateValue(device Device) {
-	log.Printf("Update value for Device %s: %f, Init done: %t", device.UniqueID, device.value, device.InitDone)
+// Send a channel message to the vdcd for the given ChannelName and ChannelType
+func (e *Client) UpdateValue(device *Device, channelName string, channelType ChannelTypeType) {
+	log.Infof("Update value for Device %s: %f, ChannelName %s, ChannelType %d, Init done: %t\n", device.UniqueID, device.value, channelName, channelType, device.InitDone)
 
 	// Make sure init is Done for the device
 	if device.InitDone {
-		e.sendChannelMessageByTag(device.value, device.Tag)
+		e.sendChannelMessage(device.value, device.Tag, channelName, channelType)
 	}
 
 }
