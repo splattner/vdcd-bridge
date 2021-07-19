@@ -71,7 +71,7 @@ func (e *TasmotaDevice) NewTasmotaDevice(vdcdClient *vdcdapi.Client, mqttClient 
 	}
 
 	device.SetName(e.FriendlyName[0])
-	device.SetChannelMessageCB(e.vcdcCallback())
+	device.SetChannelMessageCB(e.vcdcChannelCallback())
 	device.ModelName = e.Module
 	device.ModelVersion = e.SoftwareVersion
 	device.SourceDevice = e
@@ -223,7 +223,7 @@ func (e *TasmotaDevice) mqttDiscoverCallback() mqtt.MessageHandler {
 	return f
 }
 
-func (e *TasmotaDevice) vcdcCallback() func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
+func (e *TasmotaDevice) vcdcChannelCallback() func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
 
 	var f func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) = func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
 		log.Debugf("vcdcCallBack called for Device %s\n", device.UniqueID)

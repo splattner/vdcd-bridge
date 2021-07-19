@@ -311,7 +311,7 @@ func (e *Client) sendChannelMessage(value float32, tag string, channelName strin
 		return
 	}
 
-	log.Debugf("Channel Message: %s\n", string(payload))
+	log.Debugf("Send Channel Message: %s\n", string(payload))
 	e.sendMessage(channelMessage)
 }
 

@@ -32,7 +32,7 @@ func (e *ShellyDevice) NewShellyDevice(vdcdClient *vdcdapi.Client, mqttClient mq
 	device := new(vdcdapi.Device)
 	device.NewLightDevice(e.vdcdClient, e.MACAddress, false)
 	device.SetName(e.Id)
-	device.SetChannelMessageCB(e.vcdcCallback())
+	device.SetChannelMessageCB(e.vcdcChannelCallback())
 	device.ModelName = e.Model
 	device.ModelVersion = e.FirmewareVersion
 	device.SourceDevice = e
@@ -154,7 +154,7 @@ func (e *ShellyDevice) mqttDiscoverCallback() mqtt.MessageHandler {
 	return f
 }
 
-func (e *ShellyDevice) vcdcCallback() func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
+func (e *ShellyDevice) vcdcChannelCallback() func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
 
 	var f func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) = func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
 		log.Debugf("vcdcCallBack called for Device %s\n", device.UniqueID)
