@@ -315,6 +315,21 @@ func (e *Client) sendChannelMessage(value float32, tag string, channelName strin
 	e.sendMessage(channelMessage)
 }
 
+func (e *Client) SendSensorMessage(value float32, tag string, channelName string, index int) {
+	channelMessageHeader := GenericMessageHeader{MessageType: "sensor"}
+	channelMessageFields := GenericDeviceMessageFields{Index: index, Tag: tag, ChannelName: channelName, Value: value}
+	channelMessage := GenericDeviceMessage{channelMessageHeader, channelMessageFields}
+
+	payload, err := json.Marshal(channelMessage)
+	if err != nil {
+		log.Errorln("Failed to Marshall object", err.Error())
+		return
+	}
+
+	log.Debugf("Send Sensor Message: %s\n", string(payload))
+	e.sendMessage(channelMessage)
+}
+
 func (e *Client) GetDeviceByUniqueId(uniqueid string) (*Device, error) {
 	for i := 0; i < len(e.devices); i++ {
 		if e.devices[i].UniqueID == uniqueid {

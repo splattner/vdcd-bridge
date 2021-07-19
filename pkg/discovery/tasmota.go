@@ -52,6 +52,18 @@ type TasmotaResultMsg struct {
 	Channel  []int  `json:"Channel,omitempty"`
 }
 
+type TasmotaTeleMsg struct {
+	Time     string              `json:"time,omitempty"`
+	TempUnit string              `json:"TempUnit,omitempty"`
+	SI7021   TasmotaTeleSI721Msg `json:"SI7021,omitempty"`
+}
+
+type TasmotaTeleSI721Msg struct {
+	Temperature float32 `json:"Temperature,omitempty"`
+	Humidity    float32 `json:"Humidity,omitempty"`
+	DewPoint    float32 `json:"DewPoint,omitempty"`
+}
+
 func (e *TasmotaDevice) NewTasmotaDevice(vdcdClient *vdcdapi.Client, mqttClient mqtt.Client) *vdcdapi.Device {
 	e.vdcdClient = vdcdClient
 	e.mqttClient = mqttClient
@@ -76,7 +88,25 @@ func (e *TasmotaDevice) NewTasmotaDevice(vdcdClient *vdcdapi.Client, mqttClient 
 	device.ModelVersion = e.SoftwareVersion
 	device.SourceDevice = e
 
+	device.ConfigUrl = fmt.Sprintf("http://%s", e.IPAddress)
+
 	e.originDevice = device
+
+	// Sensor
+	temperaturSensor := new(vdcdapi.Sensor)
+	temperaturSensor.SensorType = vdcdapi.TemperatureSensor
+	temperaturSensor.Usage = vdcdapi.RoomSensorUsageType
+	temperaturSensor.Id = fmt.Sprintf("%s-temperature", device.UniqueID)
+	temperaturSensor.Resolution = 0.1
+
+	humiditySensor := new(vdcdapi.Sensor)
+	humiditySensor.SensorType = vdcdapi.HumiditySensor
+	humiditySensor.Usage = vdcdapi.RoomSensorUsageType
+	humiditySensor.Id = fmt.Sprintf("%s-humidity", device.UniqueID)
+	humiditySensor.Resolution = 0.1
+
+	device.AddSensor(*temperaturSensor)
+	device.AddSensor(*humiditySensor)
 
 	log.Debugf("Adding Tasmota Device %s to vcdc\n", e.FriendlyName[0])
 	e.vdcdClient.AddDevice(device)
@@ -139,10 +169,17 @@ func (e *TasmotaDevice) StartDiscovery(vdcdClient *vdcdapi.Client, mqttClient mq
 }
 
 func (e *TasmotaDevice) configureCallbacks() {
-	// Add callback for this device
-	topic := fmt.Sprintf("stat/%s/#", e.Topic)
-	log.Debugf("Subscribe to stats topic %s for device updates\n", topic)
-	if token := e.mqttClient.Subscribe(topic, 0, e.mqttCallback()); token.Wait() && token.Error() != nil {
+	// Add callback for stat
+	topicStat := fmt.Sprintf("stat/%s/#", e.Topic)
+	log.Debugf("Subscribe to stats topic %s for device updates\n", topicStat)
+	if token := e.mqttClient.Subscribe(topicStat, 0, e.mqttCallback()); token.Wait() && token.Error() != nil {
+		log.Error("MQTT subscribe failed: ", token.Error())
+	}
+
+	// Add callback for tele
+	topicTele := fmt.Sprintf("tele/%s/#", e.Topic)
+	log.Debugf("Subscribe to stats topic %s for device updates\n", topicTele)
+	if token := e.mqttClient.Subscribe(topicTele, 0, e.mqttCallback()); token.Wait() && token.Error() != nil {
 		log.Error("MQTT subscribe failed: ", token.Error())
 	}
 }
@@ -187,6 +224,19 @@ func (e *TasmotaDevice) mqttCallback() mqtt.MessageHandler {
 				}
 
 			}
+		}
+
+		if strings.Contains(msg.Topic(), "SENSOR") {
+			var teleMsg TasmotaTeleMsg
+			err := json.Unmarshal(msg.Payload(), &teleMsg)
+			if err != nil {
+				log.Errorf("Unmarshal to TasmotaTeleMsg failed\n", err.Error())
+				return
+			}
+
+			e.originDevice.UpdateSensorValue(teleMsg.SI7021.Temperature, fmt.Sprintf("%s-temperature", e.originDevice.UniqueID))
+			e.originDevice.UpdateSensorValue(teleMsg.SI7021.Humidity, fmt.Sprintf("%s-humidity", e.originDevice.UniqueID))
+
 		}
 
 	}

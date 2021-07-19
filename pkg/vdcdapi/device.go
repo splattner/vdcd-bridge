@@ -99,6 +99,17 @@ func (e *Device) UpdateValue(newValue float32, channelName string, channelType C
 
 }
 
+func (e *Device) UpdateSensorValue(newValue float32, sensorId string) {
+
+	for i := 0; i < len(e.Sensors); i++ {
+		if e.Sensors[i].Id == sensorId {
+			e.client.SendSensorMessage(newValue, e.Tag, sensorId, i)
+			break
+		}
+	}
+
+}
+
 func (e *Device) SetValue(newValue float32, channelName string) {
 	log.Debugf("Set value for vdcd-brige Device %s to: %f on ChannelName: %s\n", e.UniqueID, newValue, channelName)
 	for i := 0; i < len(e.Channels); i++ {

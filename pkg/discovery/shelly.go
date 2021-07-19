@@ -37,6 +37,8 @@ func (e *ShellyDevice) NewShellyDevice(vdcdClient *vdcdapi.Client, mqttClient mq
 	device.ModelVersion = e.FirmewareVersion
 	device.SourceDevice = e
 
+	device.ConfigUrl = fmt.Sprintf("http://%s", e.IPAddress)
+
 	button := new(vdcdapi.Button)
 	button.LocalButton = true
 	button.Id = "input0"

@@ -9,6 +9,7 @@ type InputType int
 type UsageType int
 type SensorType int
 type ChannelTypeType int
+type SensorUsageType int
 
 const (
 	NotDefinedButton ButtonType = iota
@@ -160,6 +161,13 @@ const (
 	VentilationLouverPositionType
 )
 
+const (
+	UndefinedSensorUsageType SensorUsageType = iota
+	RoomSensorUsageType
+	OutdoorSensorUsageType
+	UserInteractionSensorUsageType
+)
+
 type InitvdcMessage struct {
 	GenericMessageHeader
 	ModelName     string `json:"modelname,omitempty"`
@@ -300,17 +308,17 @@ type Input struct {
 }
 
 type Sensor struct {
-	Id                  string  `json:"id,omitempty"`
-	SensorType          int     `json:"sensortype,omitempty"`
-	Usage               int     `json:"usage,omitempty"`
-	Group               int     `json:"group,omitempty"`
-	UpdateInterval      float32 `json:"updateinterval,omitempty"`
-	AliveSignalInterval float32 `json:"alivesignalinterval,omitempty"`
-	ChangesOnlyInterval float32 `json:"changesonlyinterval,omitempty"`
-	HardwareName        string  `json:"groups,omitempty"`
-	Min                 float32 `json:"min,omitempty"`
-	Max                 float32 `json:"max,omitempty"`
-	Resolution          float32 `json:"resolution,omitempty"`
+	Id                  string          `json:"id,omitempty"`
+	SensorType          SensorType      `json:"sensortype,omitempty"`
+	Usage               SensorUsageType `json:"usage,omitempty"`
+	Group               int             `json:"group,omitempty"`
+	UpdateInterval      float32         `json:"updateinterval,omitempty"`
+	AliveSignalInterval float32         `json:"alivesignalinterval,omitempty"`
+	ChangesOnlyInterval float32         `json:"changesonlyinterval,omitempty"`
+	HardwareName        string          `json:"groups,omitempty"`
+	Min                 float32         `json:"min,omitempty"`
+	Max                 float32         `json:"max,omitempty"`
+	Resolution          float32         `json:"resolution,omitempty"`
 }
 
 type Action struct {
