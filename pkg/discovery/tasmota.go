@@ -98,12 +98,14 @@ func (e *TasmotaDevice) NewTasmotaDevice(vdcdClient *vdcdapi.Client, mqttClient 
 	temperaturSensor.Usage = vdcdapi.RoomSensorUsageType
 	temperaturSensor.Id = fmt.Sprintf("%s-temperature", device.UniqueID)
 	temperaturSensor.Resolution = 0.1
+	temperaturSensor.UpdateInterval = 0 // no fixed interval
 
 	humiditySensor := new(vdcdapi.Sensor)
 	humiditySensor.SensorType = vdcdapi.HumiditySensor
 	humiditySensor.Usage = vdcdapi.RoomSensorUsageType
 	humiditySensor.Id = fmt.Sprintf("%s-humidity", device.UniqueID)
 	humiditySensor.Resolution = 0.1
+	humiditySensor.UpdateInterval = 0 // no fixed interval
 
 	device.AddSensor(*temperaturSensor)
 	device.AddSensor(*humiditySensor)

@@ -8,6 +8,7 @@ Currently the following devices are supported:
 * [Tasmota](https://github.com/plan44/vdcd) based relays. Uses MQTT for discovery and control of the device
 * [Shelly](https://shelly.cloud/) based relays. Uses MQTT for discovery and control of the device.
 
+[DSS Devices](dss_devices.png)
 
 ## How to
 
