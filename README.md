@@ -29,7 +29,7 @@ docker build -t myImageName .
 Start the vdcd:
 
 ```
- docker run --network=host myimagename vdcd --externaldevices 8999 --externalnonlocal
+ docker run --network=host -v /var/run/dbus:/var/run/dbus -v /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket myimagename vdcd --externaldevices 8999 --externalnonlocal
 ```
 
 ### 2. Start the vdcd Brige
