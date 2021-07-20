@@ -12,6 +12,7 @@ import (
 )
 
 type TasmotaDevice struct {
+	GenericDevice
 	IPAddress       string         `json:"ip,omitempty"`
 	DeviceName      string         `json:"dn,omitempty"`
 	FriendlyName    []string       `json:"fn,omitempty"`
@@ -36,10 +37,6 @@ type TasmotaDevice struct {
 	LightSubtype    int            `json:"lt_st,omitempty"` // https://github.com/arendst/Tasmota/blob/development/tasmota/xdrv_04_light.ino
 	ShutterOptions  []int          `json:"sho,omitempty"`
 	Version         int            `json:"ver,omitempty"`
-
-	vdcdClient   *vdcdapi.Client
-	mqttClient   mqtt.Client
-	originDevice *vdcdapi.Device
 }
 
 type TasmotaResultMsg struct {
@@ -154,27 +151,17 @@ func (e *TasmotaDevice) StartDiscovery(vdcdClient *vdcdapi.Client, mqttClient mq
 	e.vdcdClient = vdcdClient
 
 	log.Infoln(("Starting Tasmota Device discovery"))
-
-	if token := mqttClient.Subscribe("tasmota/discovery/#", 0, e.mqttDiscoverCallback()); token.Wait() && token.Error() != nil {
-		log.Error("MQTT subscribe failed: ", token.Error())
-	}
-
+	e.subscribeMqttTopic("tasmota/discovery/#", e.mqttDiscoverCallback())
 }
 
 func (e *TasmotaDevice) configureCallbacks() {
 	// Add callback for stat
 	topicStat := fmt.Sprintf("stat/%s/#", e.Topic)
-	log.Debugf("Subscribe to stats topic %s for device updates\n", topicStat)
-	if token := e.mqttClient.Subscribe(topicStat, 0, e.mqttCallback()); token.Wait() && token.Error() != nil {
-		log.Error("MQTT subscribe failed: ", token.Error())
-	}
+	e.subscribeMqttTopic(topicStat, e.mqttCallback())
 
 	// Add callback for tele
 	topicTele := fmt.Sprintf("tele/%s/#", e.Topic)
-	log.Debugf("Subscribe to stats topic %s for device updates\n", topicTele)
-	if token := e.mqttClient.Subscribe(topicTele, 0, e.mqttCallback()); token.Wait() && token.Error() != nil {
-		log.Error("MQTT subscribe failed: ", token.Error())
-	}
+	e.subscribeMqttTopic(topicTele, e.mqttCallback())
 }
 
 // MQTT Callback from tasmota device
@@ -277,31 +264,25 @@ func (e *TasmotaDevice) vcdcChannelCallback() func(message *vdcdapi.GenericVDCDM
 }
 
 func (e *TasmotaDevice) TurnOn() {
-	e.publishCommand("POWER", "on")
+	e.publishMqttCommand("cmnd/"+e.Topic+"/POWER", "on")
 }
 
 func (e *TasmotaDevice) TurnOff() {
-	e.publishCommand("POWER", "off")
+	e.publishMqttCommand("cmnd/"+e.Topic+"/POWER", "off")
 }
 
 func (e *TasmotaDevice) SetBrightness(brightness float32) {
-	e.publishCommand("HsbColor3", brightness)
+	e.publishMqttCommand("cmnd/"+e.Topic+"/HsbColor3", brightness)
 }
 
 func (e *TasmotaDevice) SetHue(hue float32) {
-	e.publishCommand("HsbColor1", hue)
+	e.publishMqttCommand("cmnd/"+e.Topic+"/HsbColor1", hue)
 }
 
 func (e *TasmotaDevice) SetSaturation(saturation float32) {
-	e.publishCommand("HsbColor2", saturation)
+	e.publishMqttCommand("cmnd/"+e.Topic+"/HsbColor2", saturation)
 }
 
 func (e *TasmotaDevice) SetColorTemp(ct float32) {
 	log.Warningln("Setting Color Temp not implemented")
-}
-
-func (e *TasmotaDevice) publishCommand(command string, value interface{}) {
-	if token := e.mqttClient.Publish("cmnd/"+e.Topic+"/"+command, 0, false, fmt.Sprintf("%v", value)); token.Wait() && token.Error() != nil {
-		log.Errorln("MQTT publish failed", token.Error())
-	}
 }

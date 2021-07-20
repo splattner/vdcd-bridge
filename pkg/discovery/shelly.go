@@ -12,16 +12,13 @@ import (
 )
 
 type ShellyDevice struct {
+	GenericDevice
 	Id                   string `json:"id,omitempty"`
 	Model                string `json:"model,omitempty"`
 	MACAddress           string `json:"mac,omitempty"`
 	IPAddress            string `json:"ip,omitempty"`
 	NewFirewareAvailable bool   `json:"new_fw,omitempty"`
 	FirmewareVersion     string `json:"fw_ver,omitempty"`
-
-	vdcdClient   *vdcdapi.Client
-	mqttClient   mqtt.Client
-	originDevice *vdcdapi.Device
 }
 
 func (e *ShellyDevice) NewShellyDevice(vdcdClient *vdcdapi.Client, mqttClient mqtt.Client) *vdcdapi.Device {
@@ -63,14 +60,14 @@ func (e *ShellyDevice) SetValue(value float32, channelName string, channelType v
 	// Also sync the state with originDevice
 	e.originDevice.SetValue(value, channelName)
 
-	if value == 100 {
-		if token := e.mqttClient.Publish("shellies/"+e.Id+"/relay/0/command", 0, false, "on"); token.Wait() && token.Error() != nil {
-			log.Errorln("MQTT publish failed", token.Error())
+	switch channelName {
+	case "basic_switch":
+		if value == 100 {
+			e.TurnOn()
+		} else {
+			e.TurnOff()
 		}
-	} else {
-		if token := e.mqttClient.Publish("shellies/"+e.Id+"/relay/0/command", 0, false, "off"); token.Wait() && token.Error() != nil {
-			log.Errorln("MQTT publish failed", token.Error())
-		}
+
 	}
 
 }
@@ -81,25 +78,15 @@ func (e *ShellyDevice) StartDiscovery(vdcdClient *vdcdapi.Client, mqttClient mqt
 
 	log.Infoln(("Starting Shelly Device discovery"))
 
-	if token := mqttClient.Subscribe("shellies/announce", 0, e.mqttDiscoverCallback()); token.Wait() && token.Error() != nil {
-		log.Error("MQTT subscribe failed: ", token.Error())
-	}
-
-	if token := mqttClient.Subscribe("shellies/+/info", 0, e.mqttDiscoverCallback()); token.Wait() && token.Error() != nil {
-		log.Error("MQTT subscribe failed: ", token.Error())
-	}
-
-	if token := mqttClient.Publish("shellies/command", 0, false, "announce"); token.Wait() && token.Error() != nil {
-		log.Error("MQTT publish failed: ", token.Error())
-	}
+	e.subscribeMqttTopic("shellies/announce", e.mqttDiscoverCallback())
+	e.subscribeMqttTopic("shellies/+/info", e.mqttDiscoverCallback())
+	e.publishMqttCommand("shellies/command", "announce")
 }
 
 func (e *ShellyDevice) configureCallbacks() {
 	// Add callback for this device
 	topic := fmt.Sprintf("shellies/%s/#", e.Id)
-	if token := e.mqttClient.Subscribe(topic, 0, e.mqttCallback()); token.Wait() && token.Error() != nil {
-		log.Error("MQTT subscribe failed: ", token.Error())
-	}
+	e.subscribeMqttTopic(topic, e.mqttCallback())
 }
 
 func (e *ShellyDevice) mqttCallback() mqtt.MessageHandler {
@@ -162,4 +149,12 @@ func (e *ShellyDevice) vcdcChannelCallback() func(message *vdcdapi.GenericVDCDMe
 	}
 
 	return f
+}
+
+func (e *ShellyDevice) TurnOn() {
+	e.publishMqttCommand("shellies/"+e.Id+"/relay/0/command", "on")
+}
+
+func (e *ShellyDevice) TurnOff() {
+	e.publishMqttCommand("shellies/"+e.Id+"/relay/0/command", "off")
 }
