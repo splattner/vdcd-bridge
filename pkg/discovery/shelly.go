@@ -61,9 +61,7 @@ func (e *ShellyDevice) SetValue(value float32, channelName string, channelType v
 	log.Infof("Set Value for Shelly Device %s to %f\n", e.Id, value)
 
 	// Also sync the state with originDevice
-	if e.originDevice != nil { // should not happen!
-		e.originDevice.SetValue(value, "basic_switch")
-	}
+	e.originDevice.SetValue(value, channelName)
 
 	if value == 100 {
 		if token := e.mqttClient.Publish("shellies/"+e.Id+"/relay/0/command", 0, false, "on"); token.Wait() && token.Error() != nil {

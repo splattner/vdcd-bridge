@@ -55,9 +55,14 @@ func (e *Device) NewColorLightDevice(client *Client, uniqueID string) {
 	saturationChannel.ChannelName = "saturation"
 	saturationChannel.ChannelType = HueType
 
+	colorTempChannel := new(Channel)
+	colorTempChannel.ChannelName = "colortemp"
+	colorTempChannel.ChannelType = HueType
+
 	e.AddChannel(*brightnessChannel)
 	e.AddChannel(*hueChannel)
 	e.AddChannel(*saturationChannel)
+	e.AddChannel(*colorTempChannel)
 
 	e.Group = YellowLightGroup
 	e.ColorClass = YellowColorClassT

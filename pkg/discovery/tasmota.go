@@ -32,7 +32,7 @@ type TasmotaDevice struct {
 	SWN             []int          `json:"swn,omitempty"`
 	Buttons         []int          `json:"btn,omitempty"`
 	SetOptions      map[string]int `json:"so,omitempty"`
-	LK              int            `json:"lk,omitempty"`
+	LK              int            `json:"lk,omitempty"`    // LightColor (LC) and RGB LinKed https://github.com/arendst/Tasmota/blob/development/tasmota/xdrv_04_light.ino#L689
 	LightSubtype    int            `json:"lt_st,omitempty"` // https://github.com/arendst/Tasmota/blob/development/tasmota/xdrv_04_light.ino
 	ShutterOptions  []int          `json:"sho,omitempty"`
 	Version         int            `json:"ver,omitempty"`
@@ -123,36 +123,27 @@ func (e *TasmotaDevice) SetValue(value float32, channelName string, channelType 
 	log.Infof("Set Value Tasmota Device %s %s to %f on Channel '%s' \n", e.DeviceName, e.FriendlyName[0], value, channelName)
 
 	// Also sync the state with originDevice
-	if e.originDevice != nil { // should not happen!
-		e.originDevice.SetValue(value, channelName)
-	}
+	e.originDevice.SetValue(value, channelName)
 
 	switch channelName {
 	case "basic_switch":
 		if value == 100 {
-			if token := e.mqttClient.Publish("cmnd/"+e.Topic+"/POWER", 0, false, "on"); token.Wait() && token.Error() != nil {
-				log.Errorln("MQTT publish failed", token.Error())
-			}
+			e.TurnOn()
 		} else {
-			if token := e.mqttClient.Publish("cmnd/"+e.Topic+"/POWER", 0, false, "off"); token.Wait() && token.Error() != nil {
-				log.Errorln("MQTT publish failed", token.Error())
-			}
+			e.TurnOff()
 		}
 
 	case "brightness":
-		if token := e.mqttClient.Publish("cmnd/"+e.Topic+"/HsbColor3", 0, false, fmt.Sprintf("%f", value)); token.Wait() && token.Error() != nil {
-			log.Errorln("MQTT publish failed", token.Error())
-		}
+		e.SetBrightness(value)
 
 	case "hue":
-		if token := e.mqttClient.Publish("cmnd/"+e.Topic+"/HsbColor1", 0, false, fmt.Sprintf("%f", value)); token.Wait() && token.Error() != nil {
-			log.Errorln("MQTT publish failed", token.Error())
-		}
+		e.SetHue(value)
 
 	case "saturation":
-		if token := e.mqttClient.Publish("cmnd/"+e.Topic+"/HsbColor2", 0, false, fmt.Sprintf("%f", value)); token.Wait() && token.Error() != nil {
-			log.Errorln("MQTT publish failed", token.Error())
-		}
+		e.SetSaturation(value)
+
+	case "colortemp":
+		e.SetColorTemp(value)
 
 	}
 
@@ -283,4 +274,34 @@ func (e *TasmotaDevice) vcdcChannelCallback() func(message *vdcdapi.GenericVDCDM
 	}
 
 	return f
+}
+
+func (e *TasmotaDevice) TurnOn() {
+	e.publishCommand("POWER", "on")
+}
+
+func (e *TasmotaDevice) TurnOff() {
+	e.publishCommand("POWER", "off")
+}
+
+func (e *TasmotaDevice) SetBrightness(brightness float32) {
+	e.publishCommand("HsbColor3", brightness)
+}
+
+func (e *TasmotaDevice) SetHue(hue float32) {
+	e.publishCommand("HsbColor1", hue)
+}
+
+func (e *TasmotaDevice) SetSaturation(saturation float32) {
+	e.publishCommand("HsbColor2", saturation)
+}
+
+func (e *TasmotaDevice) SetColorTemp(ct float32) {
+	log.Warningln("Setting Color Temp not implemented")
+}
+
+func (e *TasmotaDevice) publishCommand(command string, value interface{}) {
+	if token := e.mqttClient.Publish("cmnd/"+e.Topic+"/"+command, 0, false, fmt.Sprintf("%v", value)); token.Wait() && token.Error() != nil {
+		log.Errorln("MQTT publish failed", token.Error())
+	}
 }
