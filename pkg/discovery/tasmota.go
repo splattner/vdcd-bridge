@@ -130,14 +130,21 @@ func (e *TasmotaDevice) SetValue(value float32, channelName string, channelType 
 			e.TurnOff()
 		}
 
-	case "brightness":
-		e.SetBrightness(value)
+	case "brightness", "hue", "saturation":
 
-	case "hue":
-		e.SetHue(value)
+		// Get all values as they are dependent
+		brightness, _ := e.originDevice.GetValue("brightness")
+		hue, _ := e.originDevice.GetValue("hue")
+		saturation, _ := e.originDevice.GetValue("saturation")
 
-	case "saturation":
-		e.SetSaturation(value)
+		if e.LightSubtype == 4 && saturation == 0 {
+			e.SetWhite(brightness)
+		} else {
+			e.SetHSB(hue, saturation, brightness)
+			//e.SetBrightness(brightness)
+			//e.SetHue(hue)
+			//e.SetSaturation(saturation)
+		}
 
 	case "colortemp":
 		e.SetColorTemp(value)
@@ -188,7 +195,7 @@ func (e *TasmotaDevice) mqttCallback() mqtt.MessageHandler {
 				e.originDevice.UpdateValue(0, "basic_switch", vdcdapi.UndefinedType)
 			}
 
-			if resultMesage.HSBCOlor != "" {
+			if resultMesage.HSBCOlor != "" && resultMesage.White == 0 {
 				hsbcolor := strings.Split(resultMesage.HSBCOlor, ",")
 
 				if hue, err := strconv.ParseFloat(hsbcolor[0], 32); err == nil {
@@ -202,6 +209,13 @@ func (e *TasmotaDevice) mqttCallback() mqtt.MessageHandler {
 				if brightness, err := strconv.ParseFloat(hsbcolor[2], 32); err == nil {
 					e.originDevice.UpdateValue(float32(brightness), "brightness", vdcdapi.BrightnessType)
 				}
+
+			}
+
+			if resultMesage.White > 0 {
+				//e.originDevice.UpdateValue(float32(0), "hue", vdcdapi.HueType)
+				e.originDevice.UpdateValue(float32(0), "saturation", vdcdapi.SaturationType)
+				e.originDevice.UpdateValue(float32(resultMesage.White), "brightness", vdcdapi.BrightnessType)
 
 			}
 		}
@@ -281,6 +295,15 @@ func (e *TasmotaDevice) SetHue(hue float32) {
 
 func (e *TasmotaDevice) SetSaturation(saturation float32) {
 	e.publishMqttCommand("cmnd/"+e.Topic+"/HsbColor2", saturation)
+}
+
+func (e *TasmotaDevice) SetHSB(hue float32, saturation float32, brightness float32) {
+	e.publishMqttCommand("cmnd/"+e.Topic+"/HsbColor", fmt.Sprintf("%.0f,%.0f,%.0f", hue, saturation, brightness))
+}
+
+func (e *TasmotaDevice) SetWhite(white float32) {
+	//e.publishMqttCommand("cmnd/"+e.Topic+"/Color1", "0,0,0")
+	e.publishMqttCommand("cmnd/"+e.Topic+"/White", white)
 }
 
 func (e *TasmotaDevice) SetColorTemp(ct float32) {
