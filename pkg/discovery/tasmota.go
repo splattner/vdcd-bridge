@@ -138,12 +138,14 @@ func (e *TasmotaDevice) SetValue(value float32, channelName string, channelType 
 		saturation, _ := e.originDevice.GetValue("saturation")
 
 		if e.LightSubtype == 4 && saturation == 0 {
-			e.SetWhite(brightness)
+			if saturation == 0 {
+				e.SetWhite(brightness)
+			} else {
+				e.SetHSB(hue, saturation, brightness)
+			}
+
 		} else {
-			e.SetHSB(hue, saturation, brightness)
-			//e.SetBrightness(brightness)
-			//e.SetHue(hue)
-			//e.SetSaturation(saturation)
+			e.SetBrightness(brightness)
 		}
 
 	case "colortemp":
