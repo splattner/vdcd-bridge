@@ -21,6 +21,8 @@ func main() {
 	host := p.String("H", "host", &argparse.Options{Required: true, Help: "vdcd Host to connect to"})
 	port := p.Int("p", "port", &argparse.Options{Required: false, Help: "Port of your vdcd host", Default: 8999})
 	mqttHost := p.String("", "mqtthost", &argparse.Options{Required: false, Help: "MQTT Host to connect to"})
+	mqttUsername := p.String("", "mqttusername", &argparse.Options{Required: false, Help: "MQTT Username"})
+	mqttPassword := p.String("", "mqttpassword", &argparse.Options{Required: false, Help: "MQTT Password"})
 	modelName := p.String("", "modelname", &argparse.Options{Required: false, Help: "modelName to Announce", Default: "go-client"})
 	vendorName := p.String("", "vendorName", &argparse.Options{Required: false, Help: "vendorName to Announce", Default: "go-client"})
 
@@ -39,6 +41,8 @@ func main() {
 	config.host = *host
 	config.port = *port
 	config.mqttHost = *mqttHost
+	config.mqttUsername = *mqttUsername
+	config.mqttPassword = *mqttPassword
 	config.modelName = *modelName
 	config.vendorName = *vendorName
 	if config.mqttHost != "" {

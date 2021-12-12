@@ -13,11 +13,13 @@ import (
 )
 
 type VcdcBridgeConfig struct {
-	host       string
-	port       int
-	mqttHost   string
-	modelName  string
-	vendorName string
+	host         string
+	port         int
+	mqttHost     string
+	mqttUsername string
+	mqttPassword string
+	modelName    string
+	vendorName   string
 
 	mqttDiscoveryEnabled bool
 	tasmotaDisabled      bool
@@ -52,6 +54,8 @@ func (e *VcdcBridge) NewVcdcBrige(config VcdcBridgeConfig) {
 		opts.SetPingTimeout(1 * time.Second)
 		opts.SetProtocolVersion(3)
 		opts.SetOrderMatters(false)
+		opts.SetUsername(config.mqttUsername)
+		opts.SetPassword(config.mqttPassword)
 
 		e.mqttClient = mqtt.NewClient(opts)
 	}
