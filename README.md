@@ -47,7 +47,7 @@ go build .
 
 Start the vdcd bridge:
 
-`./vcdc-bridge -H ipofvdcdhost --mqtthost ip:portmqttbroker`
+`./vdcd-bridge -H ipofvdcdhost --mqtthost ip:portmqttbroker`
 
 or as a container:
 

@@ -1,0 +1,18 @@
+{
+    "attr": {
+        "id": "10",
+        "lastannounced": "2021-12-21T12:06:18Z",
+        "lastseen": "2021-12-21T14:21Z",
+        "manufacturername": "IKEA of Sweden",
+        "modelid": "TRADFRI bulb GU10 W 400lm",
+        "name": "Sofa - Fenster",
+        "swversion": "2.3.086",
+        "type": "Dimmable light",
+        "uniqueid": "00:0b:57:ff:fe:9a:25:31-01"
+    },
+    "e": "changed",
+    "id": "10",
+    "r": "lights",
+    "t": "event",
+    "uniqueid": "00:0b:57:ff:fe:9a:25:31-01"
+}

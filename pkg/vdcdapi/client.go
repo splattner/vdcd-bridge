@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/signal"
 	"sync"
 	"time"
 
@@ -29,6 +30,9 @@ type Client struct {
 
 	modelName  string
 	vendorName string
+
+	interrupt      chan os.Signal
+	receiveChannel chan string
 }
 
 func (e *Client) NewCient(host string, port int, modelName string, vendorName string) {
@@ -62,11 +66,11 @@ func (e *Client) Connect() {
 	}
 
 	if conn == nil {
-		log.Errorf("Failed to connect to vcdc: %s\n", connString)
+		log.Errorf("Failed to connect to vdcd: %s\n", connString)
 		os.Exit(1)
 	}
 
-	log.Infof("Connected to vcdc: %s", connString)
+	log.Infof("Connected to vdcd: %s", connString)
 
 	e.conn = conn
 	e.r = bufio.NewReader(e.conn)
@@ -74,19 +78,53 @@ func (e *Client) Connect() {
 }
 
 func (e *Client) Close() {
-	e.Lock()
-	defer e.Unlock()
-	log.Infoln("Closing connection from vcdc")
+	log.Infoln("Closing connection from vdcd")
 	e.sendByeMessage()
 	e.conn.Close()
+	log.Infoln("Connection from vdcd closed")
 }
 
 func (e *Client) Listen() {
 
-	log.Infoln("Start listening for vcdc messages")
+	log.Infoln("Start listening for vdcd messages")
+
+	e.interrupt = make(chan os.Signal)       // Channel to listen for interrupt signal to terminate gracefully
+	signal.Notify(e.interrupt, os.Interrupt) // Notify the interrupt channel for SIGINT
+
+	e.receiveChannel = make(chan string)
+
+	go e.Receive()
+
+	log.Debugln("Start listening main loop")
+	for {
+		select {
+		case receiveMessage := <-e.receiveChannel:
+			log.Debugln("Message received from receive channel")
+			var msg GenericVDCDMessage
+			err := json.Unmarshal([]byte(receiveMessage), &msg)
+
+			if err != nil {
+				log.Errorln("Json Unmarshal failed:", err.Error())
+			}
+
+			e.processMessage(&msg)
+
+		case <-e.interrupt:
+			log.Debugln("Interrupt Signal received. Returning from listening main loop")
+			return
+
+		}
+	}
+
+}
+
+func (e *Client) Receive() {
+
+	log.Debugln("Starting receive loop for messages from vdcd")
 
 	for {
 
+		log.Debugln("Waiting for new vdcd message")
 		line, err := e.r.ReadString('\n')
 
 		if err != nil {
@@ -99,18 +137,10 @@ func (e *Client) Listen() {
 			}
 			return
 		}
+		log.Debugln("Message received, sending to receiveChannel")
 
-		var msg GenericVDCDMessage
-		err = json.Unmarshal([]byte(line), &msg)
-
-		if err != nil {
-			log.Errorln("Json Unmarshal failed:", err.Error())
-		}
-
-		e.processMessage(&msg)
-
+		e.receiveChannel <- line
 	}
-
 }
 
 func (e *Client) AddDevice(device *Device) {
@@ -369,7 +399,7 @@ func (e *Client) UpdateValue(device *Device, channelName string, channelType Cha
 		log.Errorf("Value for Device %s on Channel %s not found\n", device.UniqueID, channelName)
 	}
 
-	log.Infof("Update value for Device %s: %f, ChannelName %s, ChannelType %d, Init done: %t\n", device.UniqueID, value, channelName, channelType, device.InitDone)
+	log.Infof("Update value for Device '%s' (%s): %f, ChannelName %s, ChannelType %d, Init done: %t\n", device.Name, device.UniqueID, value, channelName, channelType, device.InitDone)
 
 	// Make sure init is Done for the device
 	if device.InitDone {

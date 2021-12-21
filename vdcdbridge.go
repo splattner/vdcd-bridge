@@ -13,17 +13,26 @@ import (
 )
 
 type VcdcBridgeConfig struct {
-	host         string
-	port         int
+	host string
+	port int
+
+	modelName  string
+	vendorName string
+
 	mqttHost     string
 	mqttUsername string
 	mqttPassword string
-	modelName    string
-	vendorName   string
+
+	deconzHost          string
+	deconzPort          int
+	deconcWebSockerPort int
+	deconzApi           string
+	deconzEnableGroups  bool
 
 	mqttDiscoveryEnabled bool
 	tasmotaDisabled      bool
 	shellyDisabled       bool
+	deconzDisabled       bool
 }
 
 type VcdcBridge struct {
@@ -63,11 +72,14 @@ func (e *VcdcBridge) NewVcdcBrige(config VcdcBridgeConfig) {
 	e.wg.Add(2)
 	go e.startDiscovery()
 	go e.loopVcdcClient()
-	e.wg.Wait()
 
+	log.Debugln("Waiting for Waitgroup")
+	e.wg.Wait()
+	log.Debugln("Waitgroup finished")
 }
 
 func (e *VcdcBridge) startDiscovery() {
+	log.Debugln("Start startDiscovery")
 
 	if e.config.mqttDiscoveryEnabled {
 
@@ -90,11 +102,21 @@ func (e *VcdcBridge) startDiscovery() {
 		}
 	}
 
+	if !e.config.deconzDisabled {
+
+		deconzDiscovery := new(discovery.DeconzDevice)
+		deconzDiscovery.StartDiscovery(e.vdcdClient, e.config.deconzHost, e.config.deconzPort, e.config.deconcWebSockerPort, e.config.deconzApi, e.config.deconzEnableGroups)
+	}
+
+	log.Debugln("Calling Waitgroup done for startDiscovery")
 	e.wg.Done()
 
 }
 
 func (e *VcdcBridge) loopVcdcClient() {
+	log.Debugln("Start loopVcdcClient")
 	e.vdcdClient.Listen()
+
+	log.Debugln("Calling Waitgroup done for loopVcdcClient")
 	e.wg.Done()
 }

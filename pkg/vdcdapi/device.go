@@ -53,15 +53,35 @@ func (e *Device) NewColorLightDevice(client *Client, uniqueID string) {
 
 	saturationChannel := new(Channel)
 	saturationChannel.ChannelName = "saturation"
-	saturationChannel.ChannelType = HueType
+	saturationChannel.ChannelType = SaturationType
 
 	colorTempChannel := new(Channel)
 	colorTempChannel.ChannelName = "colortemp"
-	colorTempChannel.ChannelType = HueType
+	colorTempChannel.ChannelType = ColorTemperatureType
 
 	e.AddChannel(*brightnessChannel)
 	e.AddChannel(*hueChannel)
 	e.AddChannel(*saturationChannel)
+	e.AddChannel(*colorTempChannel)
+
+	e.Group = YellowLightGroup
+	e.ColorClass = YellowColorClassT
+}
+
+func (e *Device) NewCTLightDevice(client *Client, uniqueID string) {
+	e.NewDevice(client, uniqueID)
+
+	e.Output = CtLightOutput
+
+	brightnessChannel := new(Channel)
+	brightnessChannel.ChannelName = "brightness"
+	brightnessChannel.ChannelType = BrightnessType
+
+	colorTempChannel := new(Channel)
+	colorTempChannel.ChannelName = "colortemp"
+	colorTempChannel.ChannelType = ColorTemperatureType
+
+	e.AddChannel(*brightnessChannel)
 	e.AddChannel(*colorTempChannel)
 
 	e.Group = YellowLightGroup
@@ -90,6 +110,7 @@ func (e *Device) AddInput(input Input) {
 
 // Update value from smartdevice to vdcd-bridge Device and send update to dss
 func (e *Device) UpdateValue(newValue float32, channelName string, channelType ChannelTypeType) {
+	log.Debugf("Value update from smartdevice to vdcd-bridge Device %s -> send update to dss  Value: %f,  ChannelName: %s\n", e.UniqueID, newValue, channelName)
 
 	for i := 0; i < len(e.Channels); i++ {
 		if e.Channels[i].ChannelName == channelName {
