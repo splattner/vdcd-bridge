@@ -16,5 +16,6 @@
 
 .vscode/
 
+vendor
 __debug_bin
 vdcd-bridge

@@ -9,11 +9,16 @@ import (
 func (e *Device) NewDevice(client *Client, uniqueID string) {
 	e.UniqueID = uniqueID
 	e.Tag = uniqueID
-	e.Output = BasicOutput
 
 	e.client = client
 	e.ModelName = e.client.modelName
 	e.VendorName = e.client.vendorName
+}
+
+func (e *Device) NewBasicSwitchDevice(client *Client, uniqueID string) {
+	e.NewDevice(client, uniqueID)
+
+	e.Output = BasicOutput
 
 	basicChannel := new(Channel)
 	basicChannel.ChannelName = "basic_switch"
@@ -22,8 +27,17 @@ func (e *Device) NewDevice(client *Client, uniqueID string) {
 	e.AddChannel(*basicChannel)
 }
 
-func (e *Device) NewLightDevice(client *Client, uniqueID string, dimmable bool) {
+func (e *Device) NewButtonDevice(client *Client, uniqueID string) {
 	e.NewDevice(client, uniqueID)
+
+	// Preconfigure to Light Group
+	e.Group = YellowLightGroup
+	e.ColorClass = YellowColorClassT
+
+}
+
+func (e *Device) NewLightDevice(client *Client, uniqueID string, dimmable bool) {
+	e.NewBasicSwitchDevice(client, uniqueID)
 
 	if dimmable {
 		e.Output = LightOutput
@@ -39,7 +53,7 @@ func (e *Device) NewLightDevice(client *Client, uniqueID string, dimmable bool) 
 }
 
 func (e *Device) NewColorLightDevice(client *Client, uniqueID string) {
-	e.NewDevice(client, uniqueID)
+	e.NewBasicSwitchDevice(client, uniqueID)
 
 	e.Output = ColorLightOutput
 
@@ -69,7 +83,7 @@ func (e *Device) NewColorLightDevice(client *Client, uniqueID string) {
 }
 
 func (e *Device) NewCTLightDevice(client *Client, uniqueID string) {
-	e.NewDevice(client, uniqueID)
+	e.NewBasicSwitchDevice(client, uniqueID)
 
 	e.Output = CtLightOutput
 
@@ -120,6 +134,16 @@ func (e *Device) UpdateValue(newValue float32, channelName string, channelType C
 				e.client.UpdateValue(e, channelName, channelType)
 				break
 			}
+		}
+	}
+
+}
+
+func (e *Device) ButtonEvent(value float32, id string) {
+
+	for i := 0; i < len(e.Buttons); i++ {
+		if e.Buttons[i].Id == id {
+			e.client.SendButtonMessage(value, e.Tag, i)
 		}
 	}
 

@@ -218,9 +218,9 @@ type GenericDeviceMessageFields struct {
 	Tag         string          `json:"tag,omitempty"`
 	Text        string          `json:"text,omitempty"`
 	Index       int             `json:"index"`
-	ChannelName string          `json:"id"`
+	ChannelName string          `json:"id,omitempty"`
 	Value       float32         `json:"value"`
-	ChannelType ChannelTypeType `json:"type"`
+	ChannelType ChannelTypeType `json:"type,omitempty"`
 }
 
 type GenericDeviceMessage struct {
@@ -236,7 +236,7 @@ type DeviceInitMessage struct {
 type Device struct {
 	Tag                    string                    `json:"tag,omitempty"`
 	UniqueID               string                    `json:"uniqueid,omitempty"`
-	SubDeviceIndex         int                       `json:"subdeviceindex,omitempty"`
+	SubDeviceIndex         string                    `json:"subdeviceindex,omitempty"`
 	ColorClass             ColorClassType            `json:"colorclass,omitempty"`
 	Group                  GroupType                 `json:"group,omitempty"`
 	Output                 OutputType                `json:"output,omitempty"`
@@ -272,12 +272,12 @@ type Device struct {
 	Events                 map[string]Event          `json:"events,omitempty"`
 	Properties             map[string]Property       `json:"properties,omitempty"`
 
-	value        float32
-	client       *Client
-	channel_cb   func(message *GenericVDCDMessage, device *Device)
-	InitDone     bool
-	SourceDevice interface{}
-	Channels     []Channel
+	value        float32                                           `json:"-"`
+	client       *Client                                           `json:"-"`
+	channel_cb   func(message *GenericVDCDMessage, device *Device) `json:"-"`
+	InitDone     bool                                              `json:"-"`
+	SourceDevice interface{}                                       `json:"-"`
+	Channels     []Channel                                         `json:"-"`
 }
 
 type Channel struct {
