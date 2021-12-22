@@ -272,12 +272,12 @@ type Device struct {
 	Events                 map[string]Event          `json:"events,omitempty"`
 	Properties             map[string]Property       `json:"properties,omitempty"`
 
-	value        float32
-	client       *Client
-	channel_cb   func(message *GenericVDCDMessage, device *Device)
-	InitDone     bool
-	SourceDevice interface{}
-	Channels     []Channel
+	value        float32                                           `json:"-"`
+	client       *Client                                           `json:"-"`
+	channel_cb   func(message *GenericVDCDMessage, device *Device) `json:"-"`
+	InitDone     bool                                              `json:"-"`
+	SourceDevice interface{}                                       `json:"-"`
+	Channels     []Channel                                         `json:"-"`
 }
 
 type Channel struct {

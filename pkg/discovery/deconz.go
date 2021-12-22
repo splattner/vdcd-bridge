@@ -16,6 +16,7 @@ import (
 
 	deconzgroup "github.com/jurgen-kluft/go-conbee/groups"
 	deconzlight "github.com/jurgen-kluft/go-conbee/lights"
+	deconzsensor "github.com/jurgen-kluft/go-conbee/sensors"
 )
 
 type DeconzDevice struct {
@@ -29,10 +30,14 @@ type DeconzDevice struct {
 	IsLight bool
 	light   deconzlight.Light
 
-	allDeconzDevices []DeconzDevice
-
 	IsGroup bool
 	group   deconzgroup.Group
+
+	IsSensor       bool
+	sensor         deconzsensor.Sensor
+	sensorButtonID int
+
+	allDeconzDevices []DeconzDevice
 
 	done      chan interface{}
 	interrupt chan os.Signal
@@ -87,7 +92,20 @@ type DeconzState struct {
 	// Group
 	AllOn bool `json:"all_on,omitempty"`
 	AnyOn bool `json:"any_on,omitempty"`
+
+	// Sensor
+	ButtonEvent int `json:"buttonevent,omitempty"`
 }
+
+type ButtonEvent int
+
+const (
+	Hold ButtonEvent = iota + 1
+	ShortRelease
+	DoublePress
+	TreeplePress
+	LongRelease
+)
 
 func (e *DeconzDevice) NewDeconzDevice(vdcdClient *vdcdapi.Client, deconzHost string, deconzPort int, deconzWebSocketPort int, deconzAPI string) *vdcdapi.Device {
 	e.vdcdClient = vdcdClient
@@ -122,20 +140,43 @@ func (e *DeconzDevice) NewDeconzDevice(vdcdClient *vdcdapi.Client, deconzHost st
 	}
 
 	if e.IsGroup {
-		device.ModelName = "Light Group"
+
 		// Group only allows for on/off -> basic switch, no dimming
 		device.NewLightDevice(e.vdcdClient, fmt.Sprintf("%d", e.group.ID), false)
+
+		device.ModelName = "Light Group"
 		device.SetName(fmt.Sprintf("Group: %s", e.group.Name))
 
 	}
 
+	if e.IsSensor {
+
+		log.Debugf("Adding sensor %s %s", e.sensor.Name, e.sensorButtonID)
+
+		device.NewButtonDevice(e.vdcdClient, fmt.Sprintf("%s-%s", e.sensor.UniqueID, e.sensorButtonID))
+
+		device.SetName(fmt.Sprintf("%s / Button %d", e.sensor.Name, e.sensorButtonID+1))
+
+		device.ModelName = e.sensor.ModelID
+		device.ModelVersion = e.sensor.SWVersion
+		device.VendorName = e.sensor.ManufacturerName
+
+		button := new(vdcdapi.Button)
+		button.Id = "button" //fmt.Sprint(e.sensorButtonID)
+		button.ButtonId = e.sensorButtonID
+		button.ButtonType = vdcdapi.SingleButton
+		button.Group = vdcdapi.YellowLightGroup
+		device.AddButton(*button)
+
+	}
+
 	device.ConfigUrl = fmt.Sprintf("http://%s:%d", e.deconzHost, e.deconzPort)
+	device.SourceDevice = e
 
 	e.originDevice = device
 	e.vdcdClient.AddDevice(device)
 
 	return device
-
 }
 
 func (e *DeconzDevice) StartDiscovery(vdcdClient *vdcdapi.Client, deconzHost string, deconzPort int, deconcWebSockerPort int, deconzAPI string, enableGroups bool) {
@@ -150,30 +191,32 @@ func (e *DeconzDevice) StartDiscovery(vdcdClient *vdcdapi.Client, deconzHost str
 
 	log.Infof("Starting Deconz Device discovery on host %s\n", host)
 
-	// Lights
-	dl := deconzlight.New(host, e.deconzAPI)
+	// // Lights
+	// dl := deconzlight.New(host, e.deconzAPI)
 
-	allLights, _ := dl.GetAllLights()
-	for _, l := range allLights {
+	// allLights, _ := dl.GetAllLights()
+	// for _, l := range allLights {
 
-		if l.Type != "Configuration tool" { // filter this out
-			if *l.State.Reachable { // only available/reachable devices
-				deconzDevice := new(DeconzDevice)
+	// 	if l.Type != "Configuration tool" { // filter this out
+	// 		if *l.State.Reachable { // only available/reachable devices
+	// 			deconzDevice := new(DeconzDevice)
 
-				deconzDevice.IsLight = true
-				deconzDevice.light = l
+	// 			deconzDevice.IsLight = true
+	// 			deconzDevice.light = l
 
-				_, notfounderr := e.vdcdClient.GetDeviceByUniqueId(l.UniqueID)
-				if notfounderr != nil {
-					log.Debugf("Deconz Device not found in vcdc -> Adding \n")
-					deconzDevice.NewDeconzDevice(e.vdcdClient, e.deconzHost, e.deconzPort, e.deconzWebSocketPort, e.deconzAPI)
-				}
+	// 			log.Infof("Deconz Lights discovered: Name: %s, \n", l.Name)
 
-				e.allDeconzDevices = append(e.allDeconzDevices, *deconzDevice)
-			}
-		}
+	// 			_, notfounderr := e.vdcdClient.GetDeviceByUniqueId(l.UniqueID)
+	// 			if notfounderr != nil {
+	// 				log.Debugf("Deconz Device not found in vcdc -> Adding \n")
+	// 				deconzDevice.NewDeconzDevice(e.vdcdClient, e.deconzHost, e.deconzPort, e.deconzWebSocketPort, e.deconzAPI)
+	// 			}
 
-	}
+	// 			e.allDeconzDevices = append(e.allDeconzDevices, *deconzDevice)
+	// 		}
+	// 	}
+
+	// }
 
 	// Groups
 	if enableGroups {
@@ -187,6 +230,8 @@ func (e *DeconzDevice) StartDiscovery(vdcdClient *vdcdapi.Client, deconzHost str
 				deconzDeviceGroup.IsGroup = true
 				deconzDeviceGroup.group = g
 
+				log.Infof("Deconz Group discovered: Name: %s, \n", g.Name)
+
 				_, notfounderr := e.vdcdClient.GetDeviceByUniqueId(fmt.Sprint(g.ID))
 				if notfounderr != nil {
 					log.Debugf("Deconz Device not found in vcdc -> Adding \n")
@@ -199,12 +244,67 @@ func (e *DeconzDevice) StartDiscovery(vdcdClient *vdcdapi.Client, deconzHost str
 		}
 	}
 
+	// Sensors
+	ds := deconzsensor.New(host, e.deconzAPI)
+
+	allSensors, _ := ds.GetAllSensors()
+	for _, sensor := range allSensors {
+
+		if sensor.Type == "ZHASwitch" {
+
+			log.Infof("Deconz Sensor discovered: Name: %s, Type: %s, \n", sensor.Name, sensor.Type)
+
+			switch sensor.ModelID {
+			case "lumi.remote.b286opcn01":
+				sensor.Name = strings.Replace(sensor.Name, "OPPLE ", "", -1)
+				e.CreateButtonDevice(&sensor, 0)
+				e.CreateButtonDevice(&sensor, 1)
+
+			case "lumi.remote.b486opcn01":
+				sensor.Name = strings.Replace(sensor.Name, "OPPLE ", "", -1)
+				// e.CreateButtonDevice(&sensor, 0)
+				// e.CreateButtonDevice(&sensor, 1)
+				// e.CreateButtonDevice(&sensor, 2)
+				// e.CreateButtonDevice(&sensor, 3)
+
+			case "lumi.remote.b686opcn01":
+				sensor.Name = strings.Replace(sensor.Name, "OPPLE ", "", -1)
+				// e.CreateButtonDevice(&sensor, 0)
+				// e.CreateButtonDevice(&sensor, 1)
+				// e.CreateButtonDevice(&sensor, 2)
+				// e.CreateButtonDevice(&sensor, 3)
+				// e.CreateButtonDevice(&sensor, 4)
+				// e.CreateButtonDevice(&sensor, 5)
+
+			}
+
+		}
+	}
+
 	// WebSocket Handling for all Devices
 	// no need for every device to open its own websocket connection
 	log.Debugf("Call DeconZ Websocket Loop\n")
 	go e.websocketLoop()
 
 	log.Debugf("Deconz Device Discovery finished\n")
+}
+
+func (e *DeconzDevice) CreateButtonDevice(sensor *deconzsensor.Sensor, buttonID int) {
+	log.Infof("Deconz, Create ButtonDevice for %s, Button: %s, \n", sensor.Name, buttonID)
+
+	deconzDeviceSensor := new(DeconzDevice)
+	deconzDeviceSensor.IsSensor = true
+	deconzDeviceSensor.sensor = *sensor
+	deconzDeviceSensor.sensorButtonID = buttonID
+
+	_, notfounderr := e.vdcdClient.GetDeviceByUniqueId(fmt.Sprintf("%s-%s", sensor.UniqueID, buttonID))
+	if notfounderr != nil {
+		log.Debugf("Deconz Device not found in vcdc -> Adding \n")
+		deconzDeviceSensor.NewDeconzDevice(e.vdcdClient, e.deconzHost, e.deconzPort, e.deconzWebSocketPort, e.deconzAPI)
+	}
+
+	e.allDeconzDevices = append(e.allDeconzDevices, *deconzDeviceSensor)
+
 }
 
 func (e *DeconzDevice) websocketLoop() {
@@ -302,7 +402,7 @@ func (e *DeconzDevice) websocketReceiveHandler(connection *websocket.Conn) {
 				for _, l := range e.allDeconzDevices {
 					if l.IsLight {
 						if fmt.Sprint(l.light.ID) == message.ID {
-							log.Infof("Deconz Websocket Light changed event for light %s\n", l.light.Name)
+							log.Infof("Deconz Websocket changed event for light %s\n", l.light.Name)
 							l.lightStateChangedCallback(&message.State)
 							break
 						}
@@ -315,13 +415,31 @@ func (e *DeconzDevice) websocketReceiveHandler(connection *websocket.Conn) {
 
 		// Handling group Resources
 		if message.Type == "event" && message.Resource == "groups" && message.Event == "changed" {
-			log.Debugln("Groups changed Event received")
+			log.Debugln("Group changed Event received")
 
 			for _, l := range e.allDeconzDevices {
 				if l.IsGroup {
 					if fmt.Sprint(l.group.ID) == message.ID {
-						log.Debugln("Matching Deconz Group found for light changed event")
+						log.Infof("Deconz Websocker changed event for group %s\n", l.group.Name)
 						l.groupStateChangedCallback(&message.State)
+						break
+					}
+
+				}
+
+			}
+
+		}
+
+		// Handling sensor Resources
+		if message.Type == "event" && message.Resource == "sensors" && message.Event == "changed" {
+			log.Debugln("Sensor changed Event received")
+
+			for _, l := range e.allDeconzDevices {
+				if l.IsSensor {
+					if fmt.Sprint(l.sensor.ID) == message.ID {
+						log.Infof("Deconz Websocker changed event for sensor %s\n", l.sensor.Name)
+						l.sensorStateChangedCallback(&message.State)
 						break
 					}
 
@@ -417,6 +535,41 @@ func (e *DeconzDevice) groupStateChangedCallback(state *DeconzState) {
 
 	if state.AnyOn == false {
 		e.originDevice.UpdateValue(0, "basic_switch", vdcdapi.UndefinedType)
+	}
+
+}
+
+func (e *DeconzDevice) sensorStateChangedCallback(state *DeconzState) {
+
+	log.Debugf("sensorStateChangedCallback called for Device '%s'. State: '%+v'\n", e.sensor.Name, state)
+
+	if state.ButtonEvent > 0 {
+
+		// Get Button for which the event is for
+		button := int(math.Round(float64(state.ButtonEvent) / 1000))
+		log.Debugf("Event for Device '%s' on Button %d\n", e.sensor.Name, button)
+
+		if e.sensor.ModelID == "lumi.remote.b286opcn01" ||
+			e.sensor.ModelID == "lumi.remote.b486opcn01" ||
+			e.sensor.ModelID == "lumi.remote.b686opcn01" {
+
+			var event ButtonEvent
+			event = ButtonEvent(state.ButtonEvent - (button * 1000))
+
+			switch event {
+			case Hold:
+
+			case ShortRelease:
+				e.vdcdClient.SendButtonMessage()
+
+			case DoublePress:
+
+			case TreeplePress:
+
+			case LongRelease:
+
+			}
+		}
 	}
 
 }
