@@ -296,7 +296,7 @@ func (e *Client) sendMessage(message interface{}) {
 
 	payload, err := json.Marshal(message)
 
-	log.Debugf("Send Message. Raw: %s", string(payload))
+	//log.Debugf("Send Message. Raw: %s", string(payload))
 
 	if err != nil {
 		log.Errorln("Failed to Marshall object")
@@ -381,6 +381,16 @@ func (e *Client) SendButtonMessage(value float32, tag string, index int) {
 func (e *Client) GetDeviceByUniqueId(uniqueid string) (*Device, error) {
 	for i := 0; i < len(e.devices); i++ {
 		if e.devices[i].UniqueID == uniqueid {
+			return e.devices[i], nil
+		}
+	}
+
+	return nil, errors.New(("Device not found"))
+}
+
+func (e *Client) GetDeviceByUniqueIdAndSubDeviceIndex(uniqueid string, subDeviceIndex int) (*Device, error) {
+	for i := 0; i < len(e.devices); i++ {
+		if e.devices[i].UniqueID == uniqueid && e.devices[i].SubDeviceIndex == fmt.Sprintf("%d", subDeviceIndex) {
 			return e.devices[i], nil
 		}
 	}

@@ -6,7 +6,6 @@ import (
 	"math"
 	"os"
 	"os/signal"
-	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -33,10 +32,13 @@ type DeconzDevice struct {
 	IsGroup bool
 	group   deconzgroup.Group
 
-	IsSensor       bool
-	sensor         deconzsensor.Sensor
-	sensorButtonID int
+	IsSensor bool
+	sensor   deconzsensor.Sensor
+	// For when there are multiple buttons on one sensor
+	// sensorButtonId is the identifier to get the correct device
+	sensorButtonId int
 
+	// Array with all lights, groups, sensors
 	allDeconzDevices []DeconzDevice
 
 	done      chan interface{}
@@ -97,16 +99,6 @@ type DeconzState struct {
 	ButtonEvent int `json:"buttonevent,omitempty"`
 }
 
-type ButtonEvent int
-
-const (
-	Hold ButtonEvent = iota + 1
-	ShortRelease
-	DoublePress
-	TreeplePress
-	LongRelease
-)
-
 func (e *DeconzDevice) NewDeconzDevice(vdcdClient *vdcdapi.Client, deconzHost string, deconzPort int, deconzWebSocketPort int, deconzAPI string) *vdcdapi.Device {
 	e.vdcdClient = vdcdClient
 
@@ -115,66 +107,19 @@ func (e *DeconzDevice) NewDeconzDevice(vdcdClient *vdcdapi.Client, deconzHost st
 	e.deconzWebSocketPort = deconzWebSocketPort
 	e.deconzAPI = deconzAPI
 
-	device := new(vdcdapi.Device)
-
-	device.SetChannelMessageCB(e.vcdcChannelCallback())
+	var device *vdcdapi.Device
 
 	if e.IsLight {
-
-		if e.light.HasColor {
-			if e.light.State.ColorMode == "ct" {
-				device.NewCTLightDevice(e.vdcdClient, e.light.UniqueID)
-			}
-			if e.light.State.ColorMode == "hs" {
-				device.NewColorLightDevice(e.vdcdClient, e.light.UniqueID)
-			}
-
-		} else {
-			device.NewLightDevice(e.vdcdClient, e.light.UniqueID, true)
-		}
-
-		device.ModelName = e.light.ModelID
-		device.ModelVersion = e.light.SWVersion
-		device.SetName(e.light.Name)
-
+		device = e.NewDeconzLightDevice()
 	}
 
 	if e.IsGroup {
-
-		// Group only allows for on/off -> basic switch, no dimming
-		device.NewLightDevice(e.vdcdClient, fmt.Sprintf("%d", e.group.ID), false)
-
-		device.ModelName = "Light Group"
-		device.SetName(fmt.Sprintf("Group: %s", e.group.Name))
-
+		device = e.NewDeconzGroupDevice()
 	}
 
 	if e.IsSensor {
-
-		log.Debugf("Adding sensor %s %s", e.sensor.Name, e.sensorButtonID)
-
-		device.NewButtonDevice(e.vdcdClient, fmt.Sprintf("%s-%s", e.sensor.UniqueID, e.sensorButtonID))
-
-		device.SetName(fmt.Sprintf("%s / Button %d", e.sensor.Name, e.sensorButtonID+1))
-
-		device.ModelName = e.sensor.ModelID
-		device.ModelVersion = e.sensor.SWVersion
-		device.VendorName = e.sensor.ManufacturerName
-
-		button := new(vdcdapi.Button)
-		button.Id = "button" //fmt.Sprint(e.sensorButtonID)
-		button.ButtonId = e.sensorButtonID
-		button.ButtonType = vdcdapi.SingleButton
-		button.Group = vdcdapi.YellowLightGroup
-		device.AddButton(*button)
-
+		device = e.NewDeconzSensorDevice()
 	}
-
-	device.ConfigUrl = fmt.Sprintf("http://%s:%d", e.deconzHost, e.deconzPort)
-	device.SourceDevice = e
-
-	e.originDevice = device
-	e.vdcdClient.AddDevice(device)
 
 	return device
 }
@@ -189,176 +134,88 @@ func (e *DeconzDevice) StartDiscovery(vdcdClient *vdcdapi.Client, deconzHost str
 
 	host := fmt.Sprintf("%s:%d", deconzHost, deconzPort)
 
-	log.Infof("Starting Deconz Device discovery on host %s\n", host)
+	log.Infof("Starting Deconz device discovery on host %s\n", host)
 
-	// // Lights
-	// dl := deconzlight.New(host, e.deconzAPI)
-
-	// allLights, _ := dl.GetAllLights()
-	// for _, l := range allLights {
-
-	// 	if l.Type != "Configuration tool" { // filter this out
-	// 		if *l.State.Reachable { // only available/reachable devices
-	// 			deconzDevice := new(DeconzDevice)
-
-	// 			deconzDevice.IsLight = true
-	// 			deconzDevice.light = l
-
-	// 			log.Infof("Deconz Lights discovered: Name: %s, \n", l.Name)
-
-	// 			_, notfounderr := e.vdcdClient.GetDeviceByUniqueId(l.UniqueID)
-	// 			if notfounderr != nil {
-	// 				log.Debugf("Deconz Device not found in vcdc -> Adding \n")
-	// 				deconzDevice.NewDeconzDevice(e.vdcdClient, e.deconzHost, e.deconzPort, e.deconzWebSocketPort, e.deconzAPI)
-	// 			}
-
-	// 			e.allDeconzDevices = append(e.allDeconzDevices, *deconzDevice)
-	// 		}
-	// 	}
-
-	// }
+	// Lights
+	dl := deconzlight.New(host, e.deconzAPI)
+	allLights, _ := dl.GetAllLights()
+	for _, light := range allLights {
+		e.lightsDiscovery(light)
+	}
 
 	// Groups
 	if enableGroups {
 		dg := deconzgroup.New(host, e.deconzAPI)
-
 		allGroups, _ := dg.GetAllGroups()
-		for _, g := range allGroups {
-			if len(g.Lights) > 0 {
-
-				deconzDeviceGroup := new(DeconzDevice)
-				deconzDeviceGroup.IsGroup = true
-				deconzDeviceGroup.group = g
-
-				log.Infof("Deconz Group discovered: Name: %s, \n", g.Name)
-
-				_, notfounderr := e.vdcdClient.GetDeviceByUniqueId(fmt.Sprint(g.ID))
-				if notfounderr != nil {
-					log.Debugf("Deconz Device not found in vcdc -> Adding \n")
-					deconzDeviceGroup.NewDeconzDevice(e.vdcdClient, e.deconzHost, e.deconzPort, e.deconzWebSocketPort, e.deconzAPI)
-				}
-
-				e.allDeconzDevices = append(e.allDeconzDevices, *deconzDeviceGroup)
-
-			}
+		for _, group := range allGroups {
+			e.groupsDiscovery(group)
 		}
 	}
 
 	// Sensors
 	ds := deconzsensor.New(host, e.deconzAPI)
-
 	allSensors, _ := ds.GetAllSensors()
 	for _, sensor := range allSensors {
-
-		if sensor.Type == "ZHASwitch" {
-
-			log.Infof("Deconz Sensor discovered: Name: %s, Type: %s, \n", sensor.Name, sensor.Type)
-
-			switch sensor.ModelID {
-			case "lumi.remote.b286opcn01":
-				sensor.Name = strings.Replace(sensor.Name, "OPPLE ", "", -1)
-				e.CreateButtonDevice(&sensor, 0)
-				e.CreateButtonDevice(&sensor, 1)
-
-			case "lumi.remote.b486opcn01":
-				sensor.Name = strings.Replace(sensor.Name, "OPPLE ", "", -1)
-				// e.CreateButtonDevice(&sensor, 0)
-				// e.CreateButtonDevice(&sensor, 1)
-				// e.CreateButtonDevice(&sensor, 2)
-				// e.CreateButtonDevice(&sensor, 3)
-
-			case "lumi.remote.b686opcn01":
-				sensor.Name = strings.Replace(sensor.Name, "OPPLE ", "", -1)
-				// e.CreateButtonDevice(&sensor, 0)
-				// e.CreateButtonDevice(&sensor, 1)
-				// e.CreateButtonDevice(&sensor, 2)
-				// e.CreateButtonDevice(&sensor, 3)
-				// e.CreateButtonDevice(&sensor, 4)
-				// e.CreateButtonDevice(&sensor, 5)
-
-			}
-
-		}
+		e.sensorDiscovery(sensor)
 	}
 
 	// WebSocket Handling for all Devices
 	// no need for every device to open its own websocket connection
-	log.Debugf("Call DeconZ Websocket Loop\n")
 	go e.websocketLoop()
 
-	log.Debugf("Deconz Device Discovery finished\n")
-}
-
-func (e *DeconzDevice) CreateButtonDevice(sensor *deconzsensor.Sensor, buttonID int) {
-	log.Infof("Deconz, Create ButtonDevice for %s, Button: %s, \n", sensor.Name, buttonID)
-
-	deconzDeviceSensor := new(DeconzDevice)
-	deconzDeviceSensor.IsSensor = true
-	deconzDeviceSensor.sensor = *sensor
-	deconzDeviceSensor.sensorButtonID = buttonID
-
-	_, notfounderr := e.vdcdClient.GetDeviceByUniqueId(fmt.Sprintf("%s-%s", sensor.UniqueID, buttonID))
-	if notfounderr != nil {
-		log.Debugf("Deconz Device not found in vcdc -> Adding \n")
-		deconzDeviceSensor.NewDeconzDevice(e.vdcdClient, e.deconzHost, e.deconzPort, e.deconzWebSocketPort, e.deconzAPI)
-	}
-
-	e.allDeconzDevices = append(e.allDeconzDevices, *deconzDeviceSensor)
-
+	log.Debugf("Deconz, Device Discovery finished\n")
 }
 
 func (e *DeconzDevice) websocketLoop() {
 
-	log.Debugln("Starting Deconz Websocket Loop")
+	log.Debugln("Deconz, Starting Deconz Websocket Loop")
 	e.done = make(chan interface{})    // Channel to indicate that the receiverHandler is done
 	e.interrupt = make(chan os.Signal) // Channel to listen for interrupt signal to terminate gracefully
 
 	signal.Notify(e.interrupt, os.Interrupt) // Notify the interrupt channel for SIGINT
 
 	socketUrl := fmt.Sprintf("ws://%s:%d", e.deconzHost, e.deconzWebSocketPort)
-	log.Debugf("Trying to connect to Deconz Websocket %s\n", socketUrl)
+	log.Debugf("Deconz, Trying to connect to Deconz Websocket %s\n", socketUrl)
 	conn, _, err := websocket.DefaultDialer.Dial(socketUrl, nil)
 	if err != nil {
-		log.Fatal("Error connecting to Websocket Server:", err)
+		log.Fatal("Deconz, Error connecting to Websocket Server:", err)
 	}
-	log.Debugln("Connected to Deconz websocket")
+	log.Debugln("Deconz, Connected to Deconz websocket")
 
 	defer conn.Close()
 
-	log.Debugln("Calling Deconz Websocket receive handler")
 	go e.websocketReceiveHandler(conn)
 
 	// Our main loop for the client
 	// We send our relevant packets here
-	log.Debugln("Starting Deconz Websocket client main loop")
+	log.Debugln("Deconz, Starting Deconz Websocket client main loop")
 	for {
 		select {
 		case <-time.After(time.Duration(1) * time.Millisecond * 1000):
 			// Send an echo packet every second
 			err := conn.WriteMessage(websocket.TextMessage, []byte("Hello from vdcd-brige!"))
 			if err != nil {
-				log.Println("Error during writing to websocket:", err)
+				log.Println("Deconz, Error during writing to websocket:", err)
 				return
 			}
 
 		case <-e.interrupt:
 			// We received a SIGINT (Ctrl + C). Terminate gracefully...
-			log.Println("Received SIGINT interrupt signal. Closing all pending connections")
+			log.Println("Deconz, Received SIGINT interrupt signal. Closing all pending connections")
 
 			// Close our websocket connection
 			err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 			if err != nil {
-				log.Println("Error during closing websocket:", err)
+				log.Println("Deconz, Error during closing websocket:", err)
 				return
 			}
 
 			select {
 			case <-e.done:
-				log.Println("Receiver Channel Closed!")
+				log.Println("Deconz, Receiver Channel Closed!")
 			case <-time.After(time.Duration(1) * time.Second):
-				log.Println("Timeout in closing receiving channel.")
+				log.Println("Deconz, Timeout in closing receiving channel.")
 			}
-			log.Debugln("Returning from Deconz Websocket Main loop")
 			return
 		}
 	}
@@ -366,17 +223,17 @@ func (e *DeconzDevice) websocketLoop() {
 
 func (e *DeconzDevice) websocketReceiveHandler(connection *websocket.Conn) {
 
-	log.Debugln("Starting Deconz Websocket receive handler")
+	log.Debugln("Deconz, Starting Deconz Websocket receive handler")
 
 	defer close(e.done)
 	for {
 		_, msg, err := connection.ReadMessage()
 		if err != nil {
-			log.Println("Error in Deconz Websocket Message receive:", err)
+			log.Println("Deconz, Error in Deconz Websocket Message receive:", err)
 			return
 		}
 
-		log.Debugf("Received Deconz Websocket Message. Raw Message: %s\n", msg)
+		log.Debugf("Deconz, Received Deconz Websocket Message. Raw Message: %s\n", msg)
 
 		var message DeconzWebSocketMessage
 		err = json.Unmarshal(msg, &message)
@@ -397,7 +254,6 @@ func (e *DeconzDevice) websocketReceiveHandler(connection *websocket.Conn) {
 				message.State.Reachable != nil ||
 				message.State.ColorMode != "" ||
 				message.State.ColorLoopSpeed != nil {
-				log.Debugln("Deconz Websocket Lights changed Event received")
 
 				for _, l := range e.allDeconzDevices {
 					if l.IsLight {
@@ -415,12 +271,11 @@ func (e *DeconzDevice) websocketReceiveHandler(connection *websocket.Conn) {
 
 		// Handling group Resources
 		if message.Type == "event" && message.Resource == "groups" && message.Event == "changed" {
-			log.Debugln("Group changed Event received")
 
 			for _, l := range e.allDeconzDevices {
 				if l.IsGroup {
 					if fmt.Sprint(l.group.ID) == message.ID {
-						log.Infof("Deconz Websocker changed event for group %s\n", l.group.Name)
+						log.Infof("Deconz Websocket changed event for group %s\n", l.group.Name)
 						l.groupStateChangedCallback(&message.State)
 						break
 					}
@@ -433,20 +288,16 @@ func (e *DeconzDevice) websocketReceiveHandler(connection *websocket.Conn) {
 
 		// Handling sensor Resources
 		if message.Type == "event" && message.Resource == "sensors" && message.Event == "changed" {
-			log.Debugln("Sensor changed Event received")
 
 			for _, l := range e.allDeconzDevices {
 				if l.IsSensor {
 					if fmt.Sprint(l.sensor.ID) == message.ID {
-						log.Infof("Deconz Websocker changed event for sensor %s\n", l.sensor.Name)
-						l.sensorStateChangedCallback(&message.State)
-						break
+						// Send to all devices which handles this sensor
+						log.Infof("Deconz, Websocket changed event for sensor %s\n", l.sensor.Name)
+						l.sensorWebsocketCallback(&message.State)
 					}
-
 				}
-
 			}
-
 		}
 	}
 }
@@ -454,17 +305,14 @@ func (e *DeconzDevice) websocketReceiveHandler(connection *websocket.Conn) {
 // Apply update from dss to deconz device
 func (e *DeconzDevice) SetValue(value float32, channelName string, channelType vdcdapi.ChannelTypeType) {
 
-	log.Infof("Set Value for Deconz Device %s to %f on Channel '%s' \n", e.light.Name, value, channelName)
+	log.Infof("Deconz, Set Value for Deconz Device %s to %f on Channel '%s' \n", e.light.Name, value, channelName)
 
 	// Also sync the state with originDevice
 	e.originDevice.SetValue(value, channelName)
 
 	switch channelName {
 
-	case "basic_switch":
-		brightness := float32(math.Round(float64(value)))
-		e.SetBrightness(brightness)
-	case "brightness":
+	case "basic_switch", "brightness":
 		brightness := float32(math.Round(float64(value)))
 		e.SetBrightness(brightness)
 	case "hue":
@@ -473,131 +321,43 @@ func (e *DeconzDevice) SetValue(value float32, channelName string, channelType v
 		e.SetSaturation(value)
 	case "colortemp":
 		e.SetColorTemp(value)
-
 	}
-
 }
 
 func (e *DeconzDevice) vcdcChannelCallback() func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
 
 	var f func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) = func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
-		log.Debugf("vcdcCallBack called for Device %s\n", device.UniqueID)
+		log.Debugf("Deconz, vcdcCallBack called for Device %s\n", device.UniqueID)
 		e.SetValue(message.Value, message.ChannelName, message.ChannelType)
-
 	}
 
 	return f
-}
-
-func (e *DeconzDevice) lightStateChangedCallback(state *DeconzState) {
-
-	log.Debugf("lightStateChangedCallback called for Device '%s'. State: '%+v'\n", e.light.Name, state)
-
-	if state.Bri != nil {
-		log.Debugf("lightStateChangedCallback: set Brightness to %d\n", *state.Bri)
-		bri_converted := float32(math.Round(float64(*state.Bri) / 255 * 100))
-		e.originDevice.UpdateValue(float32(bri_converted), "brightness", vdcdapi.BrightnessType)
-	}
-
-	if state.CT != nil {
-		log.Debugf("lightStateChangedCallback: set CT to %d\n", *state.CT)
-		e.originDevice.UpdateValue(float32(*state.CT), "colortemp", vdcdapi.ColorTemperatureType)
-	}
-
-	// if state.Sat != nil {
-	// 	log.Debugf("lightStateChangedCallback: set Saturation to %d\n", *state.Sat)
-	// 	e.originDevice.UpdateValue(float32(*state.Sat), "saturation", vdcdapi.SaturationType)
-	// }
-
-	// if state.Hue != nil {
-	// 	log.Debugf("lightStateChangedCallback: set Hue to %d\n", *state.Hue)
-	// 	e.originDevice.UpdateValue(float32(*state.Hue), "hue", vdcdapi.HueType)
-	// }
-
-	// if !*state.On {
-	// 	log.Debugf("lightStateChangedCallback: state off, set Brightness to 0\n")
-	// 	e.originDevice.UpdateValue(0, "basic_switch", vdcdapi.UndefinedType)
-	// }
-
-}
-
-func (e *DeconzDevice) groupStateChangedCallback(state *DeconzState) {
-
-	log.Debugf("groupStateChangedCallback called for Device '%s'. State: '%+v'\n", e.light.Name, state)
-
-	if state.AllOn {
-		e.originDevice.UpdateValue(100, "basic_switch", vdcdapi.UndefinedType)
-	}
-
-	if state.AnyOn {
-		e.originDevice.UpdateValue(100, "basic_switch", vdcdapi.UndefinedType)
-	}
-
-	if state.AnyOn == false {
-		e.originDevice.UpdateValue(0, "basic_switch", vdcdapi.UndefinedType)
-	}
-
-}
-
-func (e *DeconzDevice) sensorStateChangedCallback(state *DeconzState) {
-
-	log.Debugf("sensorStateChangedCallback called for Device '%s'. State: '%+v'\n", e.sensor.Name, state)
-
-	if state.ButtonEvent > 0 {
-
-		// Get Button for which the event is for
-		button := int(math.Round(float64(state.ButtonEvent) / 1000))
-		log.Debugf("Event for Device '%s' on Button %d\n", e.sensor.Name, button)
-
-		if e.sensor.ModelID == "lumi.remote.b286opcn01" ||
-			e.sensor.ModelID == "lumi.remote.b486opcn01" ||
-			e.sensor.ModelID == "lumi.remote.b686opcn01" {
-
-			var event ButtonEvent
-			event = ButtonEvent(state.ButtonEvent - (button * 1000))
-
-			switch event {
-			case Hold:
-
-			case ShortRelease:
-				e.vdcdClient.SendButtonMessage()
-
-			case DoublePress:
-
-			case TreeplePress:
-
-			case LongRelease:
-
-			}
-		}
-	}
-
 }
 
 func (e *DeconzDevice) TurnOn() {
 
 	if e.IsLight {
 		e.light.State.SetOn(true)
-		e.setLightState()
 	}
 
 	if e.IsGroup {
 		e.group.Action.SetOn(true)
-		e.setGroupState()
 	}
+
+	e.setState()
 }
 
 func (e *DeconzDevice) TurnOff() {
 
 	if e.IsLight {
 		e.light.State.SetOn(false)
-		e.setLightState()
 	}
 
 	if e.IsGroup {
 		e.group.Action.SetOn(false)
-		e.setGroupState()
 	}
+
+	e.setState()
 }
 
 func (e *DeconzDevice) SetBrightness(brightness float32) {
@@ -612,7 +372,6 @@ func (e *DeconzDevice) SetBrightness(brightness float32) {
 		bri_converted := uint8(math.Round(float64(brightness) / 100 * 255))
 		e.light.State.Bri = &bri_converted
 
-		e.setLightState()
 	}
 
 	if e.IsGroup {
@@ -624,9 +383,9 @@ func (e *DeconzDevice) SetBrightness(brightness float32) {
 
 		bri_converted := uint8(math.Round(float64(brightness) / 100 * 255))
 		e.group.Action.Bri = &bri_converted
-
-		e.setGroupState()
 	}
+
+	e.setState()
 }
 
 func (e *DeconzDevice) SetColorTemp(ct float32) {
@@ -635,13 +394,13 @@ func (e *DeconzDevice) SetColorTemp(ct float32) {
 
 	if e.IsLight {
 		e.light.State.CT = &converted
-		e.setLightState()
 	}
 
 	if e.IsGroup {
 		e.group.Action.CT = &converted
-		e.setGroupState()
 	}
+
+	e.setState()
 }
 
 func (e *DeconzDevice) SetHue(hue float32) {
@@ -649,13 +408,13 @@ func (e *DeconzDevice) SetHue(hue float32) {
 	converted := uint16(hue)
 	if e.IsLight {
 		e.light.State.Hue = &converted
-		e.setLightState()
 	}
 
 	if e.IsGroup {
 		e.group.Action.Hue = &converted
-		e.setGroupState()
 	}
+
+	e.setState()
 }
 
 func (e *DeconzDevice) SetSaturation(saturation float32) {
@@ -664,42 +423,22 @@ func (e *DeconzDevice) SetSaturation(saturation float32) {
 
 	if e.IsLight {
 		e.light.State.Sat = &converted
-		e.setLightState()
 	}
 
 	if e.IsGroup {
 		e.group.Action.Sat = &converted
+	}
+
+	e.setState()
+}
+
+func (e *DeconzDevice) setState() {
+
+	if e.IsLight {
+		e.setLightState()
+	}
+
+	if e.IsGroup {
 		e.setGroupState()
-	}
-
-}
-
-func (e *DeconzDevice) setLightState() {
-
-	state := strings.Replace(e.light.State.String(), "\n", ",", -1)
-	state = strings.Replace(state, " ", "", -1)
-
-	log.Infof("Deconz call SetLightState with state (%s) for Light with id %d\n", state, e.light.ID)
-
-	conbeehost := fmt.Sprintf("%s:%d", e.deconzHost, e.deconzPort)
-	ll := deconzlight.New(conbeehost, e.deconzAPI)
-	_, err := ll.SetLightState(e.light.ID, &e.light.State)
-	if err != nil {
-		log.Debugln("SetLightState Error", err)
-	}
-}
-
-func (e *DeconzDevice) setGroupState() {
-
-	state := strings.Replace(e.group.Action.String(), "\n", ",", -1)
-	state = strings.Replace(state, " ", "", -1)
-
-	log.Infof("Deconz call SetGroupState with state (%s) for Light with id %d\n", state, e.group.ID)
-
-	conbeehost := fmt.Sprintf("%s:%d", e.deconzHost, e.deconzPort)
-	ll := deconzgroup.New(conbeehost, e.deconzAPI)
-	_, err := ll.SetGroupState(e.light.ID, e.group.Action)
-	if err != nil {
-		log.Debugln("SetGroupState Error", err)
 	}
 }
