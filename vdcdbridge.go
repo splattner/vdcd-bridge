@@ -33,6 +33,7 @@ type VcdcBridgeConfig struct {
 	tasmotaDisabled      bool
 	shellyDisabled       bool
 	deconzDisabled       bool
+	zigbee2mqttDisabled  bool
 }
 
 type VcdcBridge struct {
@@ -55,10 +56,10 @@ func (e *VcdcBridge) NewVcdcBrige(config VcdcBridgeConfig) {
 
 	// Configure MQTT Client if enabled
 	if config.mqttDiscoveryEnabled {
-		log.Infof("Connecting to MQTT Host: %s\n", config.mqttHost)
+		log.Infof("Create MQTT Client for Host: %s\n", config.mqttHost)
 
 		mqttBroker := fmt.Sprintf("tcp://%s", config.mqttHost)
-		opts := mqtt.NewClientOptions().AddBroker(mqttBroker).SetClientID("vdcd_cient")
+		opts := mqtt.NewClientOptions().AddBroker(mqttBroker).SetClientID("vdcd_client")
 		opts.SetKeepAlive(60 * time.Second)
 		opts.SetPingTimeout(1 * time.Second)
 		opts.SetProtocolVersion(3)
@@ -83,6 +84,8 @@ func (e *VcdcBridge) startDiscovery() {
 
 	if e.config.mqttDiscoveryEnabled {
 
+		log.Infof("MQTT connect")
+
 		// Connect to MQTT Broker
 		if token := e.mqttClient.Connect(); token.Wait() && token.Error() != nil {
 			log.Error("MQTT connect failed: ", token.Error())
@@ -99,6 +102,14 @@ func (e *VcdcBridge) startDiscovery() {
 
 			shellyDiscovery := new(discovery.ShellyDevice)
 			shellyDiscovery.StartDiscovery(e.vdcdClient, e.mqttClient)
+		}
+
+		// Zigbee2MQTT Discovery
+		if !e.config.zigbee2mqttDisabled {
+
+			zigbee2mqttDiscovery := new(discovery.Zigbee2MQTTDevice)
+			zigbee2mqttDiscovery.StartDiscovery(e.vdcdClient, e.mqttClient)
+
 		}
 	}
 

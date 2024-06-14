@@ -191,14 +191,6 @@ func (e *DeconzDevice) websocketLoop() {
 	log.Debugln("Deconz, Starting Deconz Websocket client main loop")
 	for {
 		select {
-		case <-time.After(time.Duration(1) * time.Millisecond * 1000):
-			// Send an echo packet every second
-			err := conn.WriteMessage(websocket.TextMessage, []byte("Hello from vdcd-brige!"))
-			if err != nil {
-				log.Println("Deconz, Error during writing to websocket:", err)
-				return
-			}
-
 		case <-e.interrupt:
 			// We received a SIGINT (Ctrl + C). Terminate gracefully...
 			log.Println("Deconz, Received SIGINT interrupt signal. Closing all pending connections")
@@ -435,10 +427,10 @@ func (e *DeconzDevice) SetSaturation(saturation float32) {
 func (e *DeconzDevice) setState() {
 
 	if e.IsLight {
-		e.setLightState()
+		//e.setLightState()
 	}
 
 	if e.IsGroup {
-		e.setGroupState()
+		//e.setGroupState()
 	}
 }

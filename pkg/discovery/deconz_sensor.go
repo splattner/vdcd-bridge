@@ -52,6 +52,7 @@ func (e *DeconzDevice) NewDeconzSensorDevice() *vdcdapi.Device {
 		button.ButtonType = vdcdapi.SingleButton
 		button.Group = vdcdapi.YellowLightGroup
 		button.LocalButton = false
+		button.HardwareName = fmt.Sprintf("button%d", e.sensorButtonId+1)
 
 		device.AddButton(*button)
 
@@ -169,13 +170,16 @@ func (e *DeconzDevice) sensorWebsocketCallback(state *DeconzState) {
 
 			case ShortRelease:
 				log.Debugf("Deconz, Event ShortRelease for Device '%s' on Button %d\n", e.sensor.Name, button)
-				e.vdcdClient.SendButtonMessage(float32(SingleTip), e.originDevice.Tag, 0)
+				//e.vdcdClient.SendButtonRawMessage(vdcdapi.CT_TIP_1X, e.originDevice.Tag, 0)
+				e.vdcdClient.SendButtonRawMessage(vdcdapi.CT_TIP_1X, e.originDevice.Tag, 0)
 
 			case DoublePress:
 				log.Debugf("Deconz, Event DoublePress for Device '%s' on Button %d\n", e.sensor.Name, button)
+				e.vdcdClient.SendButtonRawMessage(vdcdapi.CT_TIP_2X, e.originDevice.Tag, 0)
 
 			case TreeplePress:
 				log.Debugf("Deconz, Event TreeplePress for Device '%s' on Button %d\n", e.sensor.Name, button)
+				e.vdcdClient.SendButtonRawMessage(vdcdapi.CT_TIP_3X, e.originDevice.Tag, 0)
 
 			case LongRelease:
 				log.Debugf("Deconz, Event LongRelease for Device '%s' on Button %d\n", e.sensor.Name, button)

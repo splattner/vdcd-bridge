@@ -10,6 +10,7 @@ type UsageType int
 type SensorType int
 type ChannelTypeType int
 type SensorUsageType int
+type ClickType int
 
 const (
 	NotDefinedButton ButtonType = iota
@@ -166,6 +167,26 @@ const (
 	RoomSensorUsageType
 	OutdoorSensorUsageType
 	UserInteractionSensorUsageType
+)
+
+const (
+	CT_TIP_1X           ClickType = iota ///< first tip
+	CT_TIP_2X                            ///< second tip
+	CT_TIP_3X                            ///< third tip
+	CT_TIP_4X                            ///< fourth tip
+	CT_HOLD_START                        ///< hold start
+	CT_HOLD_REPEAT                       ///< hold repeat
+	CT_HOLD_END                          ///< hold end
+	CT_CLICK_1X                          ///< short click
+	CT_CLICK_2X                          ///< double click
+	CT_CLICK_3X                          ///< triple click
+	CT_SHORT_LONG                        ///< short/long = programming mode
+	CT_LOCAL_OFF                         ///< local button has turned device off
+	CT_LOCAL_ON                          ///< local button has turned device on
+	CT_SHORT_SHORT_LONG                  ///< short/short/long = local programming mode
+	CT_LOCAL_STOP                        ///< local stop
+	CT_NONE             = 255            ///< no click (for state)
+
 )
 
 type InitvdcMessage struct {

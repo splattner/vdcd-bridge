@@ -37,6 +37,7 @@ func main() {
 	tasmotaDisabled := p.Flag("", "tasmotaDisabled", &argparse.Options{Required: false, Help: "disable Tasmota discovery"})
 	shellyDisabled := p.Flag("", "shellyDisabled", &argparse.Options{Required: false, Help: "disable Shelly discovery"})
 	deconzDisabled := p.Flag("", "deconzDisabled", &argparse.Options{Required: false, Help: "disable Deconz discovery"})
+	zigbee2mqttDisabled := p.Flag("", "zigbee2mqtt", &argparse.Options{Required: false, Help: "disable zigbee2mqtt discovery"})
 
 	err := p.Parse(os.Args)
 	if err != nil {
@@ -68,6 +69,7 @@ func main() {
 	config.shellyDisabled = *shellyDisabled
 	config.tasmotaDisabled = *tasmotaDisabled
 	config.deconzDisabled = *deconzDisabled
+	config.zigbee2mqttDisabled = *zigbee2mqttDisabled
 
 	// Disable if config not complete
 	if config.deconzHost == "" || config.deconzApi == "" || config.deconzPort == 0 {
