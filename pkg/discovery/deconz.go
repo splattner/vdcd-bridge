@@ -189,7 +189,7 @@ func (e *DeconzDevice) websocketLoop() {
 	// Our main loop for the client
 	// We send our relevant packets here
 	log.Debugln("Deconz, Starting Deconz Websocket client main loop")
-	for {
+	for { // nolint:all
 		select {
 		case <-e.interrupt:
 			// We received a SIGINT (Ctrl + C). Terminate gracefully...
@@ -231,7 +231,7 @@ func (e *DeconzDevice) websocketReceiveHandler(connection *websocket.Conn) {
 		err = json.Unmarshal(msg, &message)
 
 		if err != nil {
-			log.Errorf("Unmarshal to DeconzWebSocketMessage failed\n", err.Error())
+			log.WithError(err).Error("Unmarshal to DeconzWebSocketMessage failed")
 			return
 		}
 
@@ -427,10 +427,12 @@ func (e *DeconzDevice) SetSaturation(saturation float32) {
 func (e *DeconzDevice) setState() {
 
 	if e.IsLight {
+		log.Debug("Set Light state for")
 		//e.setLightState()
 	}
 
 	if e.IsGroup {
+		log.Debug("Set Group state for")
 		//e.setGroupState()
 	}
 }

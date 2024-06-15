@@ -120,7 +120,7 @@ func (e *ShellyDevice) mqttDiscoverCallback() mqtt.MessageHandler {
 			shellyDevice := new(ShellyDevice)
 			err := json.Unmarshal(msg.Payload(), &shellyDevice)
 			if err != nil {
-				log.Errorf("Unmarshal to Shelly Device failed\n", err.Error())
+				log.WithError(err).Error("Unmarshal to Shelly Device failed")
 				return
 			}
 

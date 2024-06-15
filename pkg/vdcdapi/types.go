@@ -65,15 +65,15 @@ const (
 
 const (
 	LightOutput        OutputType = "light"
-	ColorLightOutput              = "colorlight"
-	CtLightOutput                 = "ctlight"
-	MovingLightOutput             = "movinglight"
-	HeatingValveOutput            = "heatingvalve"
-	VentilationOutput             = "ventilation"
-	FanCoilUnitOutput             = "fancoilunit"
-	ShadowOutput                  = "shadow"
-	ActionOutput                  = "action"
-	BasicOutput                   = "basic"
+	ColorLightOutput   OutputType = "colorlight"
+	CtLightOutput      OutputType = "ctlight"
+	MovingLightOutput  OutputType = "movinglight"
+	HeatingValveOutput OutputType = "heatingvalve"
+	VentilationOutput  OutputType = "ventilation"
+	FanCoilUnitOutput  OutputType = "fancoilunit"
+	ShadowOutput       OutputType = "shadow"
+	ActionOutput       OutputType = "action"
+	BasicOutput        OutputType = "basic"
 )
 
 const (
@@ -293,7 +293,7 @@ type Device struct {
 	Events                 map[string]Event          `json:"events,omitempty"`
 	Properties             map[string]Property       `json:"properties,omitempty"`
 
-	value        float32                                           `json:"-"`
+	//value        float32                                           `json:"-"`
 	client       *Client                                           `json:"-"`
 	channel_cb   func(message *GenericVDCDMessage, device *Device) `json:"-"`
 	InitDone     bool                                              `json:"-"`

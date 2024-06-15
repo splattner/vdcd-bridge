@@ -424,15 +424,15 @@ func (e *Client) GetDeviceByTag(tag string) (*Device, error) {
 	return nil, errors.New(("Device not found"))
 }
 
-func (e *Client) getDeviceIndex(device Device) (*int, error) {
-	for i := 0; i < len(e.devices); i++ {
-		if e.devices[i].UniqueID == device.UniqueID {
-			return &i, nil
-		}
-	}
+// func (e *Client) getDeviceIndex(device Device) (*int, error) {
+// 	for i := 0; i < len(e.devices); i++ {
+// 		if e.devices[i].UniqueID == device.UniqueID {
+// 			return &i, nil
+// 		}
+// 	}
 
-	return nil, errors.New(("Device not found"))
-}
+// 	return nil, errors.New(("Device not found"))
+// }
 
 // Send a channel message to the vdcd for the given ChannelName and ChannelType
 func (e *Client) UpdateValue(device *Device, channelName string, channelType ChannelTypeType) {

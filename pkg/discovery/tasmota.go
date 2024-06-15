@@ -186,7 +186,7 @@ func (e *TasmotaDevice) mqttCallback() mqtt.MessageHandler {
 			var resultMesage TasmotaResultMsg
 			err := json.Unmarshal(msg.Payload(), &resultMesage)
 			if err != nil {
-				log.Errorf("Unmarshal to TasmotaPowerMsg failed\n", err.Error())
+				log.WithError(err).Error("Unmarshal to TasmotaPowerMsg failed")
 				return
 			}
 
@@ -226,7 +226,7 @@ func (e *TasmotaDevice) mqttCallback() mqtt.MessageHandler {
 			var teleMsg TasmotaTeleMsg
 			err := json.Unmarshal(msg.Payload(), &teleMsg)
 			if err != nil {
-				log.Errorf("Unmarshal to TasmotaTeleMsg failed\n", err.Error())
+				log.WithError(err).Error("Unmarshal to TasmotaTeleMsg failed")
 				return
 			}
 

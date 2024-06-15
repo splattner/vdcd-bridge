@@ -20,3 +20,4 @@ vendor
 __debug_bin
 vdcd-bridge-amd64
 vdcd-bridge-arm64
+.work

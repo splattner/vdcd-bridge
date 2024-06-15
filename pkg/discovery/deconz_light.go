@@ -3,7 +3,6 @@ package discovery
 import (
 	"fmt"
 	"math"
-	"strings"
 
 	deconzlight "github.com/jurgen-kluft/go-conbee/lights"
 	log "github.com/sirupsen/logrus"
@@ -96,17 +95,17 @@ func (e *DeconzDevice) lightStateChangedCallback(state *DeconzState) {
 
 }
 
-func (e *DeconzDevice) setLightState() {
+// func (e *DeconzDevice) setLightState() {
 
-	state := strings.Replace(e.light.State.String(), "\n", ",", -1)
-	state = strings.Replace(state, " ", "", -1)
+// 	state := strings.Replace(e.light.State.String(), "\n", ",", -1)
+// 	state = strings.Replace(state, " ", "", -1)
 
-	log.Infof("Deconz, call SetLightState with state (%s) for Light with id %d\n", state, e.light.ID)
+// 	log.Infof("Deconz, call SetLightState with state (%s) for Light with id %d\n", state, e.light.ID)
 
-	conbeehost := fmt.Sprintf("%s:%d", e.deconzHost, e.deconzPort)
-	ll := deconzlight.New(conbeehost, e.deconzAPI)
-	_, err := ll.SetLightState(e.light.ID, &e.light.State)
-	if err != nil {
-		log.Debugln("Deconz, SetLightState Error", err)
-	}
-}
+// 	conbeehost := fmt.Sprintf("%s:%d", e.deconzHost, e.deconzPort)
+// 	ll := deconzlight.New(conbeehost, e.deconzAPI)
+// 	_, err := ll.SetLightState(e.light.ID, &e.light.State)
+// 	if err != nil {
+// 		log.Debugln("Deconz, SetLightState Error", err)
+// 	}
+// }

@@ -2,7 +2,6 @@ package discovery
 
 import (
 	"fmt"
-	"strings"
 
 	deconzgroup "github.com/jurgen-kluft/go-conbee/groups"
 	log "github.com/sirupsen/logrus"
@@ -70,17 +69,17 @@ func (e *DeconzDevice) groupStateChangedCallback(state *DeconzState) {
 
 }
 
-func (e *DeconzDevice) setGroupState() {
+// func (e *DeconzDevice) setGroupState() {
 
-	state := strings.Replace(e.group.Action.String(), "\n", ",", -1)
-	state = strings.Replace(state, " ", "", -1)
+// 	state := strings.Replace(e.group.Action.String(), "\n", ",", -1)
+// 	state = strings.Replace(state, " ", "", -1)
 
-	log.Infof("Deconz, call SetGroupState with state (%s) for Light with id %d\n", state, e.group.ID)
+// 	log.Infof("Deconz, call SetGroupState with state (%s) for Light with id %d\n", state, e.group.ID)
 
-	conbeehost := fmt.Sprintf("%s:%d", e.deconzHost, e.deconzPort)
-	ll := deconzgroup.New(conbeehost, e.deconzAPI)
-	_, err := ll.SetGroupState(e.light.ID, e.group.Action)
-	if err != nil {
-		log.Debugln("Deconz, SetGroupState Error", err)
-	}
-}
+// 	conbeehost := fmt.Sprintf("%s:%d", e.deconzHost, e.deconzPort)
+// 	ll := deconzgroup.New(conbeehost, e.deconzAPI)
+// 	_, err := ll.SetGroupState(e.light.ID, e.group.Action)
+// 	if err != nil {
+// 		log.Debugln("Deconz, SetGroupState Error", err)
+// 	}
+// }
