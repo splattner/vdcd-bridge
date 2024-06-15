@@ -18,4 +18,5 @@
 
 vendor
 __debug_bin
-vdcd-bridge
+vdcd-bridge-amd64
+vdcd-bridge-arm64
