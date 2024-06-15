@@ -56,7 +56,7 @@ func (e *VcdcBridge) NewVcdcBrige(config VcdcBridgeConfig) {
 
 	// Configure MQTT Client if enabled
 	if config.mqttDiscoveryEnabled {
-		log.Infof("Create MQTT Client for Host: %s\n", config.mqttHost)
+		log.WithField("Host", config.mqttHost).Info("Create MQTT Client")
 
 		mqttBroker := fmt.Sprintf("tcp://%s", config.mqttHost)
 		opts := mqtt.NewClientOptions().AddBroker(mqttBroker).SetClientID("vdcd_client")
@@ -74,9 +74,9 @@ func (e *VcdcBridge) NewVcdcBrige(config VcdcBridgeConfig) {
 	go e.startDiscovery()
 	go e.loopVcdcClient()
 
-	log.Debugln("Waiting for Waitgroup")
+	log.Debug("Waiting for Waitgroup")
 	e.wg.Wait()
-	log.Debugln("Waitgroup finished")
+	log.Debug("Waitgroup finished")
 }
 
 func (e *VcdcBridge) startDiscovery() {
@@ -84,11 +84,11 @@ func (e *VcdcBridge) startDiscovery() {
 
 	if e.config.mqttDiscoveryEnabled {
 
-		log.Infof("MQTT connect")
+		log.Info("MQTT connect")
 
 		// Connect to MQTT Broker
 		if token := e.mqttClient.Connect(); token.Wait() && token.Error() != nil {
-			log.Error("MQTT connect failed: ", token.Error())
+			log.WithError(token.Error()).Error("MQTT connect failed")
 		}
 
 		// Tasmota Device Discovery
@@ -119,15 +119,15 @@ func (e *VcdcBridge) startDiscovery() {
 		deconzDiscovery.StartDiscovery(e.vdcdClient, e.config.deconzHost, e.config.deconzPort, e.config.deconcWebSockerPort, e.config.deconzApi, e.config.deconzEnableGroups)
 	}
 
-	log.Debugln("Calling Waitgroup done for startDiscovery")
+	log.Debug("Calling Waitgroup done for startDiscovery")
 	e.wg.Done()
 
 }
 
 func (e *VcdcBridge) loopVcdcClient() {
-	log.Debugln("Start loopVcdcClient")
+	log.Debug("Start loopVcdcClient")
 	e.vdcdClient.Listen()
 
-	log.Debugln("Calling Waitgroup done for loopVcdcClient")
+	log.Debug("Calling Waitgroup done for loopVcdcClient")
 	e.wg.Done()
 }

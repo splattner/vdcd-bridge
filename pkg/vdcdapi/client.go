@@ -50,14 +50,14 @@ func (e *Client) Connect() {
 	var conn net.Conn
 	var err error
 
-	log.Infof("Trying to connect to vcdc: %s\n", connString)
+	log.WithField("vdcd Host", connString).Info("Trying to connect to vdcd")
 
 	for i := 0; i < e.dialRetry; i++ {
 
 		conn, err = net.Dial("tcp", connString)
 
 		if err != nil {
-			log.Warn("Dial failed:", err.Error())
+			log.WithError(err).Warn("Dial failed")
 			time.Sleep(time.Second)
 		} else {
 			break
@@ -66,11 +66,11 @@ func (e *Client) Connect() {
 	}
 
 	if conn == nil {
-		log.Errorf("Failed to connect to vdcd: %s\n", connString)
+		log.WithField("vdcd Host", connString).Error("Failed to connect to vdcd")
 		os.Exit(1)
 	}
 
-	log.Infof("Connected to vdcd: %s", connString)
+	log.WithField("vdcd Host", connString).Info("Connected to vdcd")
 
 	e.conn = conn
 	e.r = bufio.NewReader(e.conn)
@@ -78,15 +78,15 @@ func (e *Client) Connect() {
 }
 
 func (e *Client) Close() {
-	log.Infoln("Closing connection from vdcd")
+	log.Info("Closing connection from vdcd")
 	e.sendByeMessage()
 	e.conn.Close()
-	log.Infoln("Connection from vdcd closed")
+	log.Info("Connection from vdcd closed")
 }
 
 func (e *Client) Listen() {
 
-	log.Infoln("Start listening for vdcd messages")
+	log.Info("Start listening for vdcd messages")
 
 	e.interrupt = make(chan os.Signal)       // Channel to listen for interrupt signal to terminate gracefully
 	signal.Notify(e.interrupt, os.Interrupt) // Notify the interrupt channel for SIGINT
@@ -95,7 +95,7 @@ func (e *Client) Listen() {
 
 	go e.Receive()
 
-	log.Debugln("Start listening main loop")
+	log.Debug("Start listening main loop")
 	for {
 		select {
 		case receiveMessage := <-e.receiveChannel:
@@ -104,13 +104,13 @@ func (e *Client) Listen() {
 			err := json.Unmarshal([]byte(receiveMessage), &msg)
 
 			if err != nil {
-				log.Errorln("Json Unmarshal failed:", err.Error())
+				log.WithError(err).Error("Json Unmarshal failed")
 			}
 
 			e.processMessage(&msg)
 
 		case <-e.interrupt:
-			log.Debugln("Interrupt Signal received. Returning from listening main loop")
+			log.Debug("Interrupt Signal received. Returning from listening main loop")
 			return
 
 		}
@@ -120,15 +120,15 @@ func (e *Client) Listen() {
 
 func (e *Client) Receive() {
 
-	log.Debugln("Starting receive loop for messages from vdcd")
+	log.Debug("Starting receive loop for messages from vdcd")
 
 	for {
 
-		log.Debugln("Waiting for new vdcd message")
+		log.Debug("Waiting for new vdcd message")
 		line, err := e.r.ReadString('\n')
 
 		if err != nil {
-			log.Errorln("Failed to read: ", err.Error())
+			log.WithError(err).Error("Failed to read")
 
 			if err == io.EOF {
 				// try to reconnect
@@ -137,7 +137,7 @@ func (e *Client) Receive() {
 			}
 			return
 		}
-		log.Debugln("Message received, sending to receiveChannel")
+		log.Debug("Message received, sending to receiveChannel")
 
 		e.receiveChannel <- line
 	}
@@ -155,7 +155,7 @@ func (e *Client) Initialize() {
 }
 
 func (e *Client) sentInitMessage() {
-	log.Debugln("Sending Init Message")
+	log.Debug("Sending Init Message")
 
 	// Only init devices that are not already init
 	var deviceForInit []*Device
@@ -194,7 +194,7 @@ func (e *Client) sentInitMessage() {
 		initMessage := DeviceInitMessage{GenericInitMessageHeader{GenericMessageHeader{MessageType: "init"}, "json"}, *deviceForInit[0]}
 		e.sendMessage(initMessage)
 	} else {
-		log.Warnln("Cannot initialize, no devices added")
+		log.Warn("Cannot initialize, no devices added")
 		return
 	}
 }
@@ -299,7 +299,7 @@ func (e *Client) sendMessage(message interface{}) {
 	//log.Debugf("Send Message. Raw: %s", string(payload))
 
 	if err != nil {
-		log.Errorln("Failed to Marshall object")
+		log.WithError(err).Error("Failed to Marshall object")
 		return
 	}
 
@@ -318,7 +318,7 @@ func (e *Client) sendMessage(message interface{}) {
 	e.Unlock()
 
 	if err != nil {
-		log.Errorln("Send Message failed:", err.Error())
+		log.WithError(err).Error("Send Message failed")
 		return
 	}
 
@@ -339,7 +339,7 @@ func (e *Client) sendChannelMessage(value float32, tag string, channelName strin
 
 	payload, err := json.Marshal(channelMessage)
 	if err != nil {
-		log.Errorln("Failed to Marshall object", err.Error())
+		log.WithError(err).Error("Failed to Marshall object")
 		return
 	}
 

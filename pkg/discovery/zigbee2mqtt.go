@@ -111,7 +111,7 @@ type Z2MDeviceData struct {
 	Sensitivity       *string  `json:"sensitivity,omitempty"`
 	Tamper            *bool    `json:"tamper,omitempty"`
 	KeepTime          *int     `json:"keep_time,omitempty"`
-	Brightness        *int     `json:"brightness,omitempty"`
+	Brightness        *float32 `json:"brightness,omitempty"`
 	PowerOnBehaviour  *string  `json:"power_on_behaviour,omitempty"`
 	State             *string  `json:"state,omitempty"`
 	UpdateAvailable   *bool    `json:"update_available,omitempty"`
@@ -302,7 +302,8 @@ func (e *Zigbee2MQTTDevice) mqttCallback() mqtt.MessageHandler {
 		}
 
 		if deviceData.Brightness != nil {
-			e.originDevice.UpdateValue(float32(*deviceData.Brightness), "brightness", vdcdapi.BrightnessType)
+			b := *deviceData.Brightness / 254 * 100
+			e.originDevice.UpdateValue(float32(b), "brightness", vdcdapi.BrightnessType)
 		}
 
 		if deviceData.State != nil {
@@ -368,7 +369,8 @@ func (e *Zigbee2MQTTDevice) TurnOff() {
 }
 
 func (e *Zigbee2MQTTDevice) SetBrightness(brightness float32) {
-	e.publishMqttCommand("zigbee2mqtt/"+e.Topic+"/set/brightness", brightness)
+	b := brightness / 100 * 254
+	e.publishMqttCommand("zigbee2mqtt/"+e.Topic+"/set/brightness", b)
 }
 
 func (e *Zigbee2MQTTDevice) SetColorTemp(ct float32) {
