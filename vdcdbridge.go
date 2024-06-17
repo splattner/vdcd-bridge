@@ -19,6 +19,8 @@ type VcdcBridgeConfig struct {
 	modelName  string
 	vendorName string
 
+	dryMode bool
+
 	mqttHost     string
 	mqttUsername string
 	mqttPassword string
@@ -50,7 +52,7 @@ func (e *VcdcBridge) NewVcdcBrige(config VcdcBridgeConfig) {
 
 	e.vdcdClient = new(vdcdapi.Client)
 
-	e.vdcdClient.NewCient(e.config.host, e.config.port, e.config.modelName, e.config.vendorName)
+	e.vdcdClient.NewCient(e.config.host, e.config.port, e.config.modelName, e.config.vendorName, e.config.dryMode)
 	e.vdcdClient.Connect()
 	defer e.vdcdClient.Close()
 

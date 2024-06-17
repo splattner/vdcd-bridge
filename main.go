@@ -24,6 +24,8 @@ func main() {
 	modelName := p.String("", "modelname", &argparse.Options{Required: false, Help: "modelName to Announce", Default: "go-client"})
 	vendorName := p.String("", "vendorName", &argparse.Options{Required: false, Help: "vendorName to Announce", Default: "go-client"})
 
+	dryMode := p.Flag("", "dryMode", &argparse.Options{Required: false, Help: "only Discover, no adding"})
+
 	mqttHost := p.String("", "mqtthost", &argparse.Options{Required: false, Help: "MQTT Host to connect to"})
 	mqttUsername := p.String("", "mqttusername", &argparse.Options{Required: false, Help: "MQTT Username"})
 	mqttPassword := p.String("", "mqttpassword", &argparse.Options{Required: false, Help: "MQTT Password"})
@@ -52,6 +54,7 @@ func main() {
 	config.port = *port
 	config.modelName = *modelName
 	config.vendorName = *vendorName
+	config.dryMode = *dryMode
 
 	config.mqttHost = *mqttHost
 	config.mqttUsername = *mqttUsername

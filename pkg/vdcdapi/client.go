@@ -16,9 +16,10 @@ import (
 )
 
 type Client struct {
-	conn net.Conn
-	host string
-	port int
+	conn    net.Conn
+	host    string
+	port    int
+	dryMode bool
 
 	r *bufio.Reader
 	w *bufio.Writer
@@ -35,13 +36,14 @@ type Client struct {
 	receiveChannel chan string
 }
 
-func (e *Client) NewCient(host string, port int, modelName string, vendorName string) {
+func (e *Client) NewCient(host string, port int, modelName string, vendorName string, dryMode bool) {
 	e.host = host
 	e.port = port
 	e.dialRetry = 5
 
 	e.modelName = modelName
 	e.vendorName = vendorName
+	e.dryMode = dryMode
 }
 
 func (e *Client) Connect() {
@@ -151,7 +153,9 @@ func (e *Client) AddDevice(device *Device) {
 }
 
 func (e *Client) Initialize() {
-	e.sentInitMessage()
+	if !e.dryMode {
+		e.sentInitMessage()
+	}
 }
 
 func (e *Client) sentInitMessage() {
@@ -354,7 +358,7 @@ func (e *Client) SendSensorMessage(value float32, tag string, channelName string
 
 	payload, err := json.Marshal(channelMessage)
 	if err != nil {
-		log.Errorln("Failed to Marshall object", err.Error())
+		log.WithError(err).Error("Failed to Marshall object")
 		return
 	}
 
@@ -369,7 +373,7 @@ func (e *Client) SendButtonMessage(value float32, tag string, index int) {
 
 	payload, err := json.Marshal(channelMessage)
 	if err != nil {
-		log.Errorln("Failed to Marshall object", err.Error())
+		log.WithError(err).Error("Failed to Marshall object")
 		return
 	}
 
@@ -385,7 +389,7 @@ func (e *Client) SendButtonRawMessage(clicktype ClickType, tag string, index int
 
 	payload, err := json.Marshal(channelMessage)
 	if err != nil {
-		log.Errorln("Failed to Marshall object", err.Error())
+		log.WithError(err).Error("Failed to Marshall object")
 		return
 	}
 
@@ -440,10 +444,19 @@ func (e *Client) UpdateValue(device *Device, channelName string, channelType Cha
 	value, err := device.GetValue(channelName)
 
 	if err != nil {
-		log.Errorf("Value for Device %s on Channel %s not found\n", device.UniqueID, channelName)
+		log.WithError(err).WithFields(log.Fields{
+			"UniqueID":    device.UniqueID,
+			"ChannelName": channelName,
+		}).Error("Value not found\n")
 	}
 
-	log.Infof("Update value for Device '%s' (%s): %f, ChannelName %s, ChannelType %d, Init done: %t\n", device.Name, device.UniqueID, value, channelName, channelType, device.InitDone)
+	log.WithFields(log.Fields{
+		"Name":        device.Name,
+		"UniqueID":    device.UniqueID,
+		"Channelname": channelName,
+		"Channeltype": channelType,
+		"InitDone":    device.InitDone,
+	}).Infof("Update value to %f", value)
 
 	// Make sure init is Done for the device
 	if device.InitDone {
