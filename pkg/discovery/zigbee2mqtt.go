@@ -221,7 +221,8 @@ func (e *Zigbee2MQTTDevice) CreateButtonDevice(z2mDevice Z2MDevice, actionID int
 func (e *Zigbee2MQTTDevice) CreateLightDevice(z2mDevice Z2MDevice) {
 
 	log.WithFields(log.Fields{
-		"IEEEAddress": z2mDevice.IEEEAddress,
+		"IEEEAddress":   z2mDevice.IEEEAddress,
+		"Friendly Name": z2mDevice.FriendlyName,
 	}).Info("Create Z2M Light Device")
 
 	zigbee2mqttdevice := new(Zigbee2MQTTDevice)
@@ -236,7 +237,7 @@ func (e *Zigbee2MQTTDevice) CreateLightDevice(z2mDevice Z2MDevice) {
 
 	var hasState, hasBrighness, hasColorTemp bool
 
-	for _, feature := range e.z2MDevice.Definition.Exposes {
+	for _, feature := range zigbee2mqttdevice.z2MDevice.Definition.Exposes {
 		switch feature.Type {
 		case "light":
 			for _, lightFeature := range feature.Features {
@@ -253,14 +254,14 @@ func (e *Zigbee2MQTTDevice) CreateLightDevice(z2mDevice Z2MDevice) {
 	}
 
 	if hasState && hasBrighness && !hasColorTemp {
-		device.NewLightDevice(e.vdcdClient, e.z2MDevice.IEEEAddress, true)
+		device.NewLightDevice(e.vdcdClient, zigbee2mqttdevice.z2MDevice.IEEEAddress, true)
 	}
 
 	if hasState && hasBrighness && hasColorTemp {
-		device.NewCTLightDevice(e.vdcdClient, e.z2MDevice.IEEEAddress)
+		device.NewCTLightDevice(e.vdcdClient, zigbee2mqttdevice.z2MDevice.IEEEAddress)
 	}
 
-	_, notfounderr := e.vdcdClient.GetDeviceByUniqueId(e.getUniqueId())
+	_, notfounderr := e.vdcdClient.GetDeviceByUniqueId(zigbee2mqttdevice.getUniqueId())
 	if notfounderr != nil {
 		zigbee2mqttdevice.NewZigbee2MQTT(e.vdcdClient, e.mqttClient, device)
 	}
@@ -356,21 +357,19 @@ func (e *Zigbee2MQTTDevice) mqttDiscoverCallback() mqtt.MessageHandler {
 					for i := 1; i < 4; i++ {
 						e.CreateButtonDevice(z2mdevice, i, fmt.Sprintf("button_%d", i+1))
 					}
-				case "E1524/E1810":
-					// TRADFRI remote control
+				case "E1524/E1810": // TRADFRI remote control
 					e.CreateButtonDevice(z2mdevice, 0, "toggle")
 					e.CreateButtonDevice(z2mdevice, 1, "brightness_up")
 					e.CreateButtonDevice(z2mdevice, 2, "brightness_down")
 					e.CreateButtonDevice(z2mdevice, 3, "arrow_left")
 					e.CreateButtonDevice(z2mdevice, 4, "arrow_right")
 
-				case "LED1623G12":
-					// TRADFRI bulb E27, white, globe, opal, 1000 lm
-				case "LED2101G4":
-					// TRADFRI bulb E12/E14, white spectrum, globe, opal, 450/470 lm
-				case "LED1650R5":
-					// TRADFRI bulb GU10, white, 400 lm
-					//e.CreateLightDevice(device)
+				case "LED1623G12": // TRADFRI bulb E27, white, globe, opal, 1000 lm
+					e.CreateLightDevice(z2mdevice)
+				case "LED2101G4": // TRADFRI bulb E12/E14, white spectrum, globe, opal, 450/470 lm
+					e.CreateLightDevice(z2mdevice)
+				case "LED1650R5": // TRADFRI bulb GU10, white, 400 lm
+					e.CreateLightDevice(z2mdevice)
 				}
 			}
 		}
