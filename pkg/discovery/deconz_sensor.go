@@ -171,15 +171,15 @@ func (e *DeconzDevice) sensorWebsocketCallback(state *DeconzState) {
 			case ShortRelease:
 				log.Debugf("Deconz, Event ShortRelease for Device '%s' on Button %d\n", e.sensor.Name, button)
 				//e.vdcdClient.SendButtonRawMessage(vdcdapi.CT_TIP_1X, e.originDevice.Tag, 0)
-				e.vdcdClient.SendButtonRawMessage(vdcdapi.CT_TIP_1X, e.originDevice.Tag, 0)
+				e.vdcdClient.SendButtonMessage(float32(-vdcdapi.CT_DC_TIP_1X), e.originDevice.Tag, 0)
 
 			case DoublePress:
 				log.Debugf("Deconz, Event DoublePress for Device '%s' on Button %d\n", e.sensor.Name, button)
-				e.vdcdClient.SendButtonRawMessage(vdcdapi.CT_TIP_2X, e.originDevice.Tag, 0)
+				e.vdcdClient.SendButtonMessage(float32(-vdcdapi.CT_DC_TIP_2X), e.originDevice.Tag, 0)
 
 			case TreeplePress:
 				log.Debugf("Deconz, Event TreeplePress for Device '%s' on Button %d\n", e.sensor.Name, button)
-				e.vdcdClient.SendButtonRawMessage(vdcdapi.CT_TIP_3X, e.originDevice.Tag, 0)
+				e.vdcdClient.SendButtonMessage(float32(-vdcdapi.CT_DC_TIP_3X), e.originDevice.Tag, 0)
 
 			case LongRelease:
 				log.Debugf("Deconz, Event LongRelease for Device '%s' on Button %d\n", e.sensor.Name, button)

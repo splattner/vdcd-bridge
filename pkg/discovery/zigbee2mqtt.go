@@ -489,13 +489,13 @@ func (e *Zigbee2MQTTDevice) mqttActionCallback() mqtt.MessageHandler {
 				e.vdcdClient.SendButtonMessage(0, e.originDevice.Tag, 0)
 			case "single":
 			case "click":
-				e.vdcdClient.SendButtonRawMessage(vdcdapi.CT_TIP_1X, e.originDevice.Tag, 0)
+				e.vdcdClient.SendButtonMessage(float32(-vdcdapi.CT_DC_TIP_1X), e.originDevice.Tag, 0)
 			case "double":
-				e.vdcdClient.SendButtonRawMessage(vdcdapi.CT_TIP_2X, e.originDevice.Tag, 0)
+				e.vdcdClient.SendButtonMessage(float32(-vdcdapi.CT_DC_TIP_2X), e.originDevice.Tag, 0)
 			case "triple":
-				e.vdcdClient.SendButtonRawMessage(vdcdapi.CT_TIP_3X, e.originDevice.Tag, 0)
+				e.vdcdClient.SendButtonMessage(float32(-vdcdapi.CT_DC_TIP_3X), e.originDevice.Tag, 0)
 			default:
-				e.vdcdClient.SendButtonRawMessage(vdcdapi.CT_TIP_1X, e.originDevice.Tag, 0)
+				e.vdcdClient.SendButtonMessage(float32(-vdcdapi.CT_DC_TIP_1X), e.originDevice.Tag, 0)
 
 			}
 

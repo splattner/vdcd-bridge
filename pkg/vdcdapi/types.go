@@ -186,7 +186,16 @@ const (
 	CT_SHORT_SHORT_LONG                  ///< short/short/long = local programming mode
 	CT_LOCAL_STOP                        ///< local stop
 	CT_NONE             = 255            ///< no click (for state)
+)
 
+// Clicktype values for direct click
+const (
+	CT_DC_TIP_1X     ClickType = 1
+	CT_DC_TIP_2X     ClickType = 2
+	CT_DC_TIP_3X     ClickType = 3
+	CT_DC_TIP_4X     ClickType = 4
+	CT_DC_HOLD_START ClickType = 10
+	CT_DC_HOLD_END   ClickType = 11
 )
 
 type InitvdcMessage struct {
