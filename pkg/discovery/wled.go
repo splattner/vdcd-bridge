@@ -188,6 +188,7 @@ func DiscoverWledDevices(vdcdClient *vdcdapi.Client) []*vdcdapi.Device {
 		Domain:  "local",
 		Timeout: 3 * 1e9, // 3 seconds
 		Entries: entriesCh,
+		DisableIPv6: true
 	}
 	_ = mdns.Query(params)
 	return devices
