@@ -160,6 +160,9 @@ func ifElse(cond bool, a, b float32) float32 {
 
 // DiscoverWledDevices uses mDNS to find WLED devices on the local network.
 func DiscoverWledDevices(vdcdClient *vdcdapi.Client) []*vdcdapi.Device {
+
+	log.Infoln(("Starting WLED Device discovery"))
+
 	var devices []*vdcdapi.Device
 	entriesCh := make(chan *mdns.ServiceEntry, 4)
 	defer close(entriesCh)
