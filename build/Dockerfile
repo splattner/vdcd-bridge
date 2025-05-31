@@ -18,5 +18,5 @@ WORKDIR /app
 RUN adduser -D nonroot
 USER nonroot
 
-ENTRYPOINT [ "/app/vdcd-bridge ]
+ENTRYPOINT [ "/app/vdcd-bridge" ]
 CMD [ "" ]
