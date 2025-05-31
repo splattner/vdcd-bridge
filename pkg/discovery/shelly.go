@@ -21,6 +21,12 @@ type ShellyDevice struct {
 	FirmewareVersion     string `json:"fw_ver,omitempty"`
 }
 
+type ShellyInputEvent struct {
+	Input        string `json:"input,omitempty"`
+	Event        string `json:"event,omitempty"`
+	EventCounter int    `json:"event_cnt,omitempty"`
+}
+
 func (e *ShellyDevice) NewShellyDevice(vdcdClient *vdcdapi.Client, mqttClient mqtt.Client) *vdcdapi.Device {
 	e.vdcdClient = vdcdClient
 	e.mqttClient = mqttClient
@@ -102,6 +108,14 @@ func (e *ShellyDevice) mqttCallback() mqtt.MessageHandler {
 			if strings.Contains(string(msg.Payload()), "off") {
 				e.originDevice.UpdateValue(0, "basic_switch", vdcdapi.UndefinedType)
 			}
+		}
+
+		if strings.Contains(msg.Topic(), "input_event/0") {
+
+		}
+
+		if strings.Contains(msg.Topic(), "info") {
+
 		}
 
 	}

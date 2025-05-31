@@ -36,6 +36,7 @@ type VcdcBridgeConfig struct {
 	shellyDisabled       bool
 	deconzDisabled       bool
 	zigbee2mqttDisabled  bool
+	wledDisabled         bool
 }
 
 type VcdcBridge struct {
@@ -119,6 +120,12 @@ func (e *VcdcBridge) startDiscovery() {
 
 		deconzDiscovery := new(discovery.DeconzDevice)
 		deconzDiscovery.StartDiscovery(e.vdcdClient, e.config.deconzHost, e.config.deconzPort, e.config.deconcWebSockerPort, e.config.deconzApi, e.config.deconzEnableGroups)
+	}
+
+	// WLED Device Discovery
+	if !e.config.wledDisabled {
+		wledDiscovery := new(discovery.WledDevice)
+		wledDiscovery.StartDiscovery(e.vdcdClient)
 	}
 
 	log.Debug("Calling Waitgroup done for startDiscovery")
