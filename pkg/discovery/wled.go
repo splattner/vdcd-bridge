@@ -174,7 +174,7 @@ func DiscoverWledDevices(vdcdClient *vdcdapi.Client) []*vdcdapi.Device {
 				continue
 			}
 			ip := entry.AddrV4.String()
-			name := entry.Name
+			name := strings.ReplaceAll(entry.Name, "._wled._tcp.local.", "")
 			wled := &WledDevice{}
 			device := wled.NewWledDevice(vdcdClient, ip, name)
 			devices = append(devices, device)
