@@ -488,7 +488,7 @@ func (e *Zigbee2MQTTDevice) mqttActionCallback() mqtt.MessageHandler {
 			"Topic":        msg.Topic(),
 		}).Debugf("Zigbee2MQTT Action Message %s", string(msg.Payload()))
 
-		action := strings.Replace(string(msg.Payload()), fmt.Sprintf("%s_", e.actionPrefix), "", -1)
+		action := strings.ReplaceAll(string(msg.Payload()), fmt.Sprintf("%s_", e.actionPrefix), "")
 
 		// Check if the message is for this device, because they share the same mqtt topic
 		if strings.Contains(action, e.actionPrefix) {
@@ -523,7 +523,7 @@ func (e *Zigbee2MQTTDevice) mqttActionCallback() mqtt.MessageHandler {
 
 func (e *Zigbee2MQTTDevice) vcdcChannelCallback() func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
 
-	var f func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) = func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
+	f := func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
 		log.WithField("Device", device.UniqueID).Debug("vcdcCallBack called")
 		e.SetValue(message.Value, message.ChannelName, message.ChannelType)
 	}
@@ -578,7 +578,7 @@ func (e *Zigbee2MQTTDevice) SetColorTemp(ct float32) {
 
 func (p *MQTTProxy) subscribeMqttTopic(topic string, callback mqtt.MessageHandler) {
 
-	strippedTopic := strings.Replace(topic, "/#", "", -1)
+	strippedTopic := strings.ReplaceAll(topic, "/#", "")
 
 	if p.receivers == nil {
 		p.receivers = make(map[string][]mqtt.MessageHandler)

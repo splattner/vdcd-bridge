@@ -111,7 +111,7 @@ func (e *ShellyDevice) configureCallbacks() {
 
 func (e *ShellyDevice) mqttCallback() mqtt.MessageHandler {
 
-	var f mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
+	f := func(client mqtt.Client, msg mqtt.Message) {
 
 		log.Debugf("Shelly MQTT Message for %s, Topic %s, Message %s", e.Id, string(msg.Topic()), string(msg.Payload()))
 
@@ -122,14 +122,6 @@ func (e *ShellyDevice) mqttCallback() mqtt.MessageHandler {
 			if strings.Contains(string(msg.Payload()), "off") {
 				e.originDevice.UpdateValue(0, "basic_switch", vdcdapi.UndefinedType)
 			}
-		}
-
-		if strings.Contains(msg.Topic(), "input_event/0") {
-
-		}
-
-		if strings.Contains(msg.Topic(), "info") {
-
 		}
 
 	}
@@ -171,7 +163,7 @@ func (e *ShellyDevice) mqttDiscoverCallback() mqtt.MessageHandler {
 
 func (e *ShellyDevice) vcdcChannelCallback() func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
 
-	var f func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) = func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
+	f := func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
 		log.Debugf("vcdcCallBack called for Device %s\n", device.UniqueID)
 		e.SetValue(message.Value, message.ChannelName, message.ChannelType)
 	}

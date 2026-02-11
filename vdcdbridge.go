@@ -199,8 +199,6 @@ func (e *VcdcBridge) startDiscovery() {
 			}
 		}
 	}
-
-	log.Debug("Calling Waitgroup done for startDiscovery")
 }
 
 func (e *VcdcBridge) loopVcdcClient() {

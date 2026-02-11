@@ -277,7 +277,7 @@ func (e *TasmotaDevice) mqttDiscoverCallback() mqtt.MessageHandler {
 
 func (e *TasmotaDevice) vcdcChannelCallback() func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
 
-	var f func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) = func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
+	f := func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
 		log.Debugf("vcdcCallBack called for Device %s\n", device.UniqueID)
 		e.SetValue(message.Value, message.ChannelName, message.ChannelType)
 	}

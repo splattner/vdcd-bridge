@@ -45,13 +45,6 @@ type haEntityRegistryEntry struct {
 	Labels       []string `json:"labels"`
 }
 
-type haDeviceRegistryEntry struct {
-	ID         string   `json:"id"`
-	Name       string   `json:"name"`
-	NameByUser string   `json:"name_by_user"`
-	Labels     []string `json:"labels"`
-}
-
 type haState struct {
 	EntityID   string          `json:"entity_id"`
 	State      string          `json:"state"`
@@ -131,7 +124,7 @@ func (e *HomeAssistantDevice) StartDiscovery(vdcdClient *vdcdapi.Client, baseURL
 }
 
 func (e *HomeAssistantDevice) vcdcChannelCallback() func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
-	var f func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) = func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
+	f := func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
 		log.Debugf("Home Assistant vcdcCallBack called for Device %s\n", device.UniqueID)
 		e.SetValue(message.Value, message.ChannelName, message.ChannelType)
 	}
@@ -190,9 +183,10 @@ func (e *HomeAssistantDevice) TurnOff() {
 }
 
 func (e *HomeAssistantDevice) applyInitialState(state haState) {
-	if state.State == "on" {
+	switch state.State {
+	case "on":
 		e.originDevice.UpdateValue(100, "basic_switch", vdcdapi.UndefinedType)
-	} else if state.State == "off" {
+	case "off":
 		e.originDevice.UpdateValue(0, "basic_switch", vdcdapi.UndefinedType)
 	}
 
@@ -213,9 +207,10 @@ func (e *HomeAssistantDevice) applyInitialState(state haState) {
 }
 
 func (e *HomeAssistantDevice) applyStateUpdate(state haState) {
-	if state.State == "on" {
+	switch state.State {
+	case "on":
 		e.originDevice.UpdateValue(100, "basic_switch", vdcdapi.UndefinedType)
-	} else if state.State == "off" {
+	case "off":
 		e.originDevice.UpdateValue(0, "basic_switch", vdcdapi.UndefinedType)
 	}
 
@@ -317,7 +312,11 @@ func (e *HomeAssistantDevice) discoverAndRegister() error {
 func (e *HomeAssistantDevice) fetchEntityRegistry() ([]haEntityRegistryEntry, error) {
 	resp, err := e.doRequest("GET", "/api/config/entity_registry/list", nil)
 	if err == nil {
-		defer resp.Body.Close()
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				log.WithError(err).Warn("Home Assistant entity registry response close failed")
+			}
+		}()
 
 		if resp.StatusCode < 300 {
 			var entries []haEntityRegistryEntry
@@ -337,33 +336,17 @@ func (e *HomeAssistantDevice) fetchEntityRegistry() ([]haEntityRegistryEntry, er
 	return e.fetchEntityRegistryWS()
 }
 
-func (e *HomeAssistantDevice) fetchDeviceRegistry() ([]haDeviceRegistryEntry, error) {
-	resp, err := e.doRequest("GET", "/api/config/device_registry/list", nil)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("device registry error: %s", string(body))
-	}
-
-	var entries []haDeviceRegistryEntry
-	if err := json.NewDecoder(resp.Body).Decode(&entries); err != nil {
-		return nil, err
-	}
-
-	return entries, nil
-}
-
 func (e *HomeAssistantDevice) fetchState(entityID string) (haState, error) {
 	endpoint := fmt.Sprintf("/api/states/%s", url.PathEscape(entityID))
 	resp, err := e.doRequest("GET", endpoint, nil)
 	if err != nil {
 		return haState{}, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.WithError(err).Warn("Home Assistant state response close failed")
+		}
+	}()
 
 	if resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
@@ -384,7 +367,11 @@ func (e *HomeAssistantDevice) callService(domain string, service string, payload
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.WithError(err).Warn("Home Assistant service response close failed")
+		}
+	}()
 
 	if resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
@@ -430,9 +417,15 @@ func (e *HomeAssistantDevice) fetchEntityRegistryWS() ([]haEntityRegistryEntry, 
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			log.WithError(err).Warn("Home Assistant websocket close failed")
+		}
+	}()
 
-	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	if err := conn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		return nil, err
+	}
 	_, msg, err := conn.ReadMessage()
 	if err != nil {
 		return nil, err
@@ -450,7 +443,9 @@ func (e *HomeAssistantDevice) fetchEntityRegistryWS() ([]haEntityRegistryEntry, 
 			return nil, err
 		}
 
-		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+		if err := conn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+			return nil, err
+		}
 		_, msg, err = conn.ReadMessage()
 		if err != nil {
 			return nil, err
@@ -473,7 +468,9 @@ func (e *HomeAssistantDevice) fetchEntityRegistryWS() ([]haEntityRegistryEntry, 
 	}
 
 	for {
-		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+		if err := conn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+			return nil, err
+		}
 		_, msg, err = conn.ReadMessage()
 		if err != nil {
 			return nil, err
@@ -528,7 +525,11 @@ func (e *HomeAssistantDevice) listenStateChangesOnce(wsURL string) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			log.WithError(err).Warn("Home Assistant websocket close failed")
+		}
+	}()
 
 	if err := e.websocketAuth(conn); err != nil {
 		return err
@@ -540,7 +541,9 @@ func (e *HomeAssistantDevice) listenStateChangesOnce(wsURL string) error {
 	}
 
 	for {
-		conn.SetReadDeadline(time.Now().Add(90 * time.Second))
+		if err := conn.SetReadDeadline(time.Now().Add(90 * time.Second)); err != nil {
+			return err
+		}
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
 			return err
@@ -567,7 +570,9 @@ func (e *HomeAssistantDevice) listenStateChangesOnce(wsURL string) error {
 }
 
 func (e *HomeAssistantDevice) websocketAuth(conn *websocket.Conn) error {
-	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	if err := conn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		return err
+	}
 	_, msg, err := conn.ReadMessage()
 	if err != nil {
 		return err
@@ -585,7 +590,9 @@ func (e *HomeAssistantDevice) websocketAuth(conn *websocket.Conn) error {
 			return err
 		}
 
-		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+		if err := conn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+			return err
+		}
 		_, msg, err = conn.ReadMessage()
 		if err != nil {
 			return err

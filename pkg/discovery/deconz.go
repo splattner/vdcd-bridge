@@ -206,7 +206,11 @@ func (e *DeconzDevice) websocketLoop() {
 	}
 	log.Debugln("Deconz, Connected to Deconz websocket")
 
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			log.WithError(err).Warn("Deconz, Error closing websocket connection")
+		}
+	}()
 
 	go e.websocketReceiveHandler(conn)
 
@@ -342,7 +346,7 @@ func (e *DeconzDevice) SetValue(value float32, channelName string, channelType v
 
 func (e *DeconzDevice) vcdcChannelCallback() func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
 
-	var f func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) = func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
+	f := func(message *vdcdapi.GenericVDCDMessage, device *vdcdapi.Device) {
 		log.Debugf("Deconz, vcdcCallBack called for Device %s\n", device.UniqueID)
 		e.SetValue(message.Value, message.ChannelName, message.ChannelType)
 	}

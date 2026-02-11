@@ -22,9 +22,9 @@ type Client struct {
 	port    int
 	dryMode bool
 
-	r *bufio.Reader
-	w *bufio.Writer
-	sync.Mutex
+	r  *bufio.Reader
+	w  *bufio.Writer
+	mu sync.Mutex
 
 	dialRetry int
 
@@ -83,7 +83,11 @@ func (e *Client) Connect() {
 func (e *Client) Close() {
 	log.Info("Closing connection from vdcd")
 	e.sendByeMessage()
-	e.conn.Close()
+	if e.conn != nil {
+		if err := e.conn.Close(); err != nil {
+			log.WithError(err).Warn("Failed to close connection from vdcd")
+		}
+	}
 	log.Info("Connection from vdcd closed")
 }
 
@@ -335,7 +339,7 @@ func (e *Client) sendMessage(message interface{}) {
 
 	//log.Println("Sending Message: " + string(payload))
 
-	e.Lock()
+	e.mu.Lock()
 	_, err = e.w.WriteString(string(payload))
 
 	if err == nil {
@@ -345,7 +349,7 @@ func (e *Client) sendMessage(message interface{}) {
 	if err == nil {
 		err = e.w.Flush()
 	}
-	e.Unlock()
+	e.mu.Unlock()
 
 	if err != nil {
 		log.WithError(err).Error("Send Message failed")

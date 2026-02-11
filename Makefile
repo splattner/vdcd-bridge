@@ -45,7 +45,7 @@ lint: fmt vet golangci-lint ## Invokes all linting targets
 
 .PHONY: golangci-lint
 golangci-lint: $(golangci_bin) ## Run golangci linters
-	$(golangci_bin) run --timeout 5m --out-format colored-line-number ./...
+	$(golangci_bin) run --timeout 5m ./...
 
 .PHONY: docker-build
 docker-build: docker-build-amd64 docker-build-arm64

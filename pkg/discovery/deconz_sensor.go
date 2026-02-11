@@ -94,19 +94,19 @@ func (e *DeconzDevice) ZHASwitchSensorDiscovery(sensor deconzsensor.Sensor) {
 
 	switch sensor.ModelID {
 	case "lumi.remote.b286opcn01":
-		sensor.Name = strings.Replace(sensor.Name, "OPPLE ", "", -1)
+		sensor.Name = strings.ReplaceAll(sensor.Name, "OPPLE ", "")
 		e.CreateButtonDevice(sensor, 0)
 		e.CreateButtonDevice(sensor, 1)
 
 	case "lumi.remote.b486opcn01":
-		sensor.Name = strings.Replace(sensor.Name, "OPPLE ", "", -1)
+		sensor.Name = strings.ReplaceAll(sensor.Name, "OPPLE ", "")
 		e.CreateButtonDevice(sensor, 0)
 		e.CreateButtonDevice(sensor, 1)
 		e.CreateButtonDevice(sensor, 2)
 		e.CreateButtonDevice(sensor, 3)
 
 	case "lumi.remote.b686opcn01":
-		sensor.Name = strings.Replace(sensor.Name, "OPPLE ", "", -1)
+		sensor.Name = strings.ReplaceAll(sensor.Name, "OPPLE ", "")
 		e.CreateButtonDevice(sensor, 0)
 		e.CreateButtonDevice(sensor, 1)
 		e.CreateButtonDevice(sensor, 2)
@@ -162,7 +162,7 @@ func (e *DeconzDevice) sensorWebsocketCallback(state *DeconzState) {
 		switch e.sensor.ModelID {
 		case "lumi.remote.b286opcn01", "lumi.remote.b486opcn01", "lumi.remote.b686opcn01":
 			// the first digit is the event
-			var event ButtonEvent = ButtonEvent(state.ButtonEvent - (button * 1000))
+			event := ButtonEvent(state.ButtonEvent - (button * 1000))
 			log.Debugf("Deconz, Event %d -> %d for Device '%s' on Button %d\n", state.ButtonEvent, event, e.sensor.Name, button)
 
 			switch event {

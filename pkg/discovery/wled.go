@@ -37,15 +37,21 @@ func (w *WledDevice) NewWledDevice(vdcdClient *vdcdapi.Client, ip string, name s
 	// Query WLED info endpoint for version
 	infoUrl := fmt.Sprintf("http://%s/json/info", w.IPAddress)
 	resp, err := http.Get(infoUrl)
-	if err == nil && resp.StatusCode == 200 {
-		defer resp.Body.Close()
-		var info struct {
-			Info struct {
-				Ver string `json:"ver"`
-			} `json:"info"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&info); err == nil {
-			device.ModelVersion = info.Info.Ver
+	if err == nil {
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				log.WithError(err).Warn("WLED info response close failed")
+			}
+		}()
+		if resp.StatusCode == 200 {
+			var info struct {
+				Info struct {
+					Ver string `json:"ver"`
+				} `json:"info"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&info); err == nil {
+				device.ModelVersion = info.Info.Ver
+			}
 		}
 	}
 
@@ -86,7 +92,11 @@ func (w *WledDevice) SetBrightness(brightness float32) {
 		log.WithError(err).Error("Failed to set WLED brightness")
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.WithError(err).Warn("WLED brightness response close failed")
+		}
+	}()
 	_, _ = io.ReadAll(resp.Body)
 }
 
@@ -115,7 +125,11 @@ func (w *WledDevice) SetColor(hue float32, saturation float32) {
 		log.WithError(err).Error("Failed to set WLED color")
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.WithError(err).Warn("WLED color response close failed")
+		}
+	}()
 	_, _ = io.ReadAll(resp.Body)
 }
 
@@ -211,7 +225,11 @@ func (w *WledDevice) sendWledState(on bool) {
 		log.WithError(err).Error("Failed to set WLED state")
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.WithError(err).Warn("WLED state response close failed")
+		}
+	}()
 	_, _ = io.ReadAll(resp.Body)
 }
 
