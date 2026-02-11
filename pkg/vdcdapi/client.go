@@ -9,7 +9,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"os/signal"
 	"sync"
 	"time"
 
@@ -91,51 +90,15 @@ func (e *Client) Close() {
 	log.Info("Connection from vdcd closed")
 }
 
-func (e *Client) Listen() {
-
-	log.Info("Start listening for vdcd messages")
-
-	e.interrupt = make(chan os.Signal)       // Channel to listen for interrupt signal to terminate gracefully
-	signal.Notify(e.interrupt, os.Interrupt) // Notify the interrupt channel for SIGINT
-
-	e.receiveChannel = make(chan string)
-
-	go e.Receive()
-
-	log.Debug("Start listening main loop")
-	for {
-		select {
-		case receiveMessage := <-e.receiveChannel:
-			log.Debugln("Message received from receive channel")
-			var msg GenericVDCDMessage
-			err := json.Unmarshal([]byte(receiveMessage), &msg)
-
-			if err != nil {
-				log.WithError(err).Error("Json Unmarshal failed")
-			}
-
-			e.processMessage(&msg)
-
-		case <-e.interrupt:
-			log.Debug("Interrupt Signal received. Returning from listening main loop")
-			return
-
-		}
-	}
-
-}
-
 func (e *Client) ListenWithContext(ctx context.Context) {
 	log.Info("Start listening for vdcd messages")
 
 	e.receiveChannel = make(chan string)
-	go e.Receive()
+	go e.Receive(ctx)
 
-	log.Debug("Start listening main loop")
 	for {
 		select {
 		case receiveMessage := <-e.receiveChannel:
-			log.Debugln("Message received from receive channel")
 			var msg GenericVDCDMessage
 			err := json.Unmarshal([]byte(receiveMessage), &msg)
 			if err != nil {
@@ -143,18 +106,24 @@ func (e *Client) ListenWithContext(ctx context.Context) {
 			}
 			e.processMessage(&msg)
 		case <-ctx.Done():
-			log.Debug("Context cancelled. Returning from listening main loop")
-			_ = e.conn.Close()
+			log.Info("Stop listening for vdcd messages")
+			e.Close()
 			return
 		}
 	}
 }
 
-func (e *Client) Receive() {
+func (e *Client) Receive(ctx context.Context) {
 
 	log.Debug("Starting receive loop for messages from vdcd")
 
 	for {
+		select {
+		case <-ctx.Done():
+			log.Info("Stop receiving vdcd messages")
+			return
+		default:
+		}
 
 		log.Debug("Waiting for new vdcd message")
 		line, err := e.r.ReadString('\n')

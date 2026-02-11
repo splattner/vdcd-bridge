@@ -18,6 +18,9 @@ type WledDevice struct {
 	Id        string
 	IPAddress string
 	Name      string
+	MAC       string
+	Brand     string
+	Product   string
 }
 
 func (w *WledDevice) NewWledDevice(vdcdClient *vdcdapi.Client, ip string, name string) *vdcdapi.Device {
@@ -34,7 +37,7 @@ func (w *WledDevice) NewWledDevice(vdcdClient *vdcdapi.Client, ip string, name s
 	device.SourceDevice = w
 	device.ConfigUrl = fmt.Sprintf("http://%s", w.IPAddress)
 
-	// Query WLED info endpoint for version
+	// Query WLED info endpoint for version and device metadata
 	infoUrl := fmt.Sprintf("http://%s/json/info", w.IPAddress)
 	resp, err := http.Get(infoUrl)
 	if err == nil {
@@ -45,12 +48,28 @@ func (w *WledDevice) NewWledDevice(vdcdClient *vdcdapi.Client, ip string, name s
 		}()
 		if resp.StatusCode == 200 {
 			var info struct {
-				Info struct {
-					Ver string `json:"ver"`
-				} `json:"info"`
+				Ver     string `json:"ver"`
+				Mac     string `json:"mac"`
+				Brand   string `json:"brand"`
+				Product string `json:"product"`
 			}
 			if err := json.NewDecoder(resp.Body).Decode(&info); err == nil {
-				device.ModelVersion = info.Info.Ver
+				device.ModelVersion = info.Ver
+				if info.Brand != "" {
+					w.Brand = info.Brand
+					device.VendorName = info.Brand
+				}
+				if info.Product != "" {
+					w.Product = info.Product
+					device.ModelName = info.Product
+				}
+				if info.Mac != "" {
+					w.MAC = info.Mac
+					device.HardwareName = info.Mac
+					device.UniqueID = info.Mac // Override UniqueID with MAC if available
+					device.Tag = info.Mac      // Store MAC in Tag for reference
+					w.Id = info.Mac            // Use MAC as unique ID if available
+				}
 			}
 		}
 	}

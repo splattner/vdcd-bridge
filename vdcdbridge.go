@@ -67,17 +67,18 @@ func (e *VcdcBridge) NewVcdcBrige(config VcdcBridgeConfig) {
 
 	e.vdcdClient.NewCient(e.config.host, e.config.port, e.config.modelName, e.config.vendorName, e.config.dryMode)
 	e.vdcdClient.Connect()
-	defer e.vdcdClient.Close()
+	//defer e.vdcdClient.Close()
 
 	e.ctx, e.cancel = context.WithCancel(context.Background())
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
+
 	go func() {
 		<-interrupt
 		log.Info("Received shutdown signal, terminating")
 		e.cancel()
-		e.vdcdClient.Close()
+		//		e.vdcdClient.Close()
 	}()
 
 	// Configure MQTT Client if enabled
@@ -96,18 +97,13 @@ func (e *VcdcBridge) NewVcdcBrige(config VcdcBridgeConfig) {
 		e.mqttClient = mqtt.NewClient(opts)
 	}
 
-	e.wg.Add(2)
 	go e.startDiscovery()
-	go e.loopVcdcClient()
+	e.loopVcdcClient()
 
-	log.Debug("Waiting for Waitgroup")
-	e.wg.Wait()
-	log.Debug("Waitgroup finished")
 }
 
 func (e *VcdcBridge) startDiscovery() {
 	log.Debugln("Start startDiscovery")
-	defer e.wg.Done()
 
 	var (
 		tasmotaDiscovery  *discovery.TasmotaDevice
@@ -120,47 +116,52 @@ func (e *VcdcBridge) startDiscovery() {
 
 	if e.config.mqttDiscoveryEnabled {
 
-		log.Info("MQTT connect")
+		log.WithField("Host", e.config.mqttHost).Info("Connecting to MQTT broker")
 
 		// Connect to MQTT Broker
 		if token := e.mqttClient.Connect(); token.Wait() && token.Error() != nil {
 			log.WithError(token.Error()).Error("MQTT connect failed")
 		}
 
+		defer func() {
+			log.Info("Disconnecting MQTT client")
+			e.mqttClient.Disconnect(250)
+		}()
+
 		// Tasmota Device Discovery
 		if !e.config.tasmotaDisabled {
 			tasmotaDiscovery = new(discovery.TasmotaDevice)
-			tasmotaDiscovery.StartDiscovery(e.vdcdClient, e.mqttClient)
+			go tasmotaDiscovery.StartDiscovery(e.vdcdClient, e.mqttClient)
 		}
 
 		// Shelly Device Discovery
 		if !e.config.shellyDisabled {
 			shellyDiscovery = new(discovery.ShellyDevice)
-			shellyDiscovery.StartDiscovery(e.vdcdClient, e.mqttClient)
+			go shellyDiscovery.StartDiscovery(e.vdcdClient, e.mqttClient)
 		}
 
 		// Zigbee2MQTT Discovery
 		if !e.config.zigbee2mqttDisabled {
 			zigbeeDiscovery = new(discovery.Zigbee2MQTTDevice)
-			zigbeeDiscovery.StartDiscovery(e.vdcdClient, e.mqttClient)
+			go zigbeeDiscovery.StartDiscovery(e.vdcdClient, e.mqttClient)
 		}
 	}
 
 	if !e.config.deconzDisabled {
 		deconzDiscovery = new(discovery.DeconzDevice)
-		deconzDiscovery.StartDiscovery(e.vdcdClient, e.config.deconzHost, e.config.deconzPort, e.config.deconcWebSockerPort, e.config.deconzApi, e.config.deconzEnableGroups)
+		go deconzDiscovery.StartDiscovery(e.vdcdClient, e.config.deconzHost, e.config.deconzPort, e.config.deconcWebSockerPort, e.config.deconzApi, e.config.deconzEnableGroups)
 	}
 
 	// WLED Device Discovery
 	if !e.config.wledDisabled {
 		wledDiscovery = new(discovery.WledDevice)
-		wledDiscovery.StartDiscovery(e.vdcdClient)
+		go wledDiscovery.StartDiscovery(e.vdcdClient)
 	}
 
 	// Home Assistant Device Discovery
 	if !e.config.homeassistantDisabled {
 		homeassistantDisc = new(discovery.HomeAssistantDevice)
-		homeassistantDisc.StartDiscovery(e.vdcdClient, e.config.homeassistantURL, e.config.homeassistantToken)
+		go homeassistantDisc.StartDiscovery(e.vdcdClient, e.config.homeassistantURL, e.config.homeassistantToken)
 	}
 
 	ticker := time.NewTicker(discoveryInterval)
@@ -175,26 +176,26 @@ func (e *VcdcBridge) startDiscovery() {
 			log.WithField("interval", discoveryInterval).Info("Running periodic discovery")
 
 			if !e.config.deconzDisabled && deconzDiscovery != nil {
-				deconzDiscovery.StartDiscovery(e.vdcdClient, e.config.deconzHost, e.config.deconzPort, e.config.deconcWebSockerPort, e.config.deconzApi, e.config.deconzEnableGroups)
+				go deconzDiscovery.StartDiscovery(e.vdcdClient, e.config.deconzHost, e.config.deconzPort, e.config.deconcWebSockerPort, e.config.deconzApi, e.config.deconzEnableGroups)
 			}
 
 			if !e.config.wledDisabled && wledDiscovery != nil {
-				wledDiscovery.StartDiscovery(e.vdcdClient)
+				go wledDiscovery.StartDiscovery(e.vdcdClient)
 			}
 
 			if !e.config.homeassistantDisabled && homeassistantDisc != nil {
-				homeassistantDisc.StartDiscovery(e.vdcdClient, e.config.homeassistantURL, e.config.homeassistantToken)
+				go homeassistantDisc.StartDiscovery(e.vdcdClient, e.config.homeassistantURL, e.config.homeassistantToken)
 			}
 
 			if e.config.mqttDiscoveryEnabled {
 				if shellyDiscovery != nil {
-					shellyDiscovery.StartDiscovery(e.vdcdClient, e.mqttClient)
+					go shellyDiscovery.StartDiscovery(e.vdcdClient, e.mqttClient)
 				}
 				if zigbeeDiscovery != nil {
-					zigbeeDiscovery.StartDiscovery(e.vdcdClient, e.mqttClient)
+					go zigbeeDiscovery.StartDiscovery(e.vdcdClient, e.mqttClient)
 				}
 				if tasmotaDiscovery != nil {
-					tasmotaDiscovery.StartDiscovery(e.vdcdClient, e.mqttClient)
+					go tasmotaDiscovery.StartDiscovery(e.vdcdClient, e.mqttClient)
 				}
 			}
 		}
@@ -202,9 +203,5 @@ func (e *VcdcBridge) startDiscovery() {
 }
 
 func (e *VcdcBridge) loopVcdcClient() {
-	defer e.wg.Done()
-	log.Debug("Start loopVcdcClient")
 	e.vdcdClient.ListenWithContext(e.ctx)
-
-	log.Debug("Calling Waitgroup done for loopVcdcClient")
 }
