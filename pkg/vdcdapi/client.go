@@ -2,6 +2,7 @@ package vdcdapi
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -118,6 +119,31 @@ func (e *Client) Listen() {
 		}
 	}
 
+}
+
+func (e *Client) ListenWithContext(ctx context.Context) {
+	log.Info("Start listening for vdcd messages")
+
+	e.receiveChannel = make(chan string)
+	go e.Receive()
+
+	log.Debug("Start listening main loop")
+	for {
+		select {
+		case receiveMessage := <-e.receiveChannel:
+			log.Debugln("Message received from receive channel")
+			var msg GenericVDCDMessage
+			err := json.Unmarshal([]byte(receiveMessage), &msg)
+			if err != nil {
+				log.WithError(err).Error("Json Unmarshal failed")
+			}
+			e.processMessage(&msg)
+		case <-ctx.Done():
+			log.Debug("Context cancelled. Returning from listening main loop")
+			_ = e.conn.Close()
+			return
+		}
+	}
 }
 
 func (e *Client) Receive() {

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/akamensky/argparse"
 	log "github.com/sirupsen/logrus"
@@ -30,6 +31,9 @@ func main() {
 	mqttUsername := p.String("", "mqttusername", &argparse.Options{Required: false, Help: "MQTT Username"})
 	mqttPassword := p.String("", "mqttpassword", &argparse.Options{Required: false, Help: "MQTT Password"})
 
+	homeassistantURL := p.String("", "homeassistant-url", &argparse.Options{Required: false, Help: "Home Assistant base URL (e.g. http://homeassistant.local:8123)"})
+	homeassistantToken := p.String("", "homeassistant-token", &argparse.Options{Required: false, Help: "Home Assistant long-lived access token"})
+
 	deconzHost := p.String("", "deconzhost", &argparse.Options{Required: false, Help: "Deconz Host IP"})
 	deconzPort := p.Int("", "deconzport", &argparse.Options{Required: false, Help: "Deconz Port"})
 	deconzWebSocketPort := p.Int("", "deconzwebsocketport", &argparse.Options{Required: false, Help: "Deconz Websocket Port"})
@@ -41,6 +45,7 @@ func main() {
 	deconzDisabled := p.Flag("", "deconzDisabled", &argparse.Options{Required: false, Help: "disable Deconz discovery"})
 	zigbee2mqttDisabled := p.Flag("", "zigbee2mqtt", &argparse.Options{Required: false, Help: "disable zigbee2mqtt discovery"})
 	wledDisabled := p.Flag("", "wledDisabled", &argparse.Options{Required: false, Help: "disable WLED discovery"})
+	homeassistantDisabled := p.Flag("", "homeassistantDisabled", &argparse.Options{Required: false, Help: "disable Home Assistant discovery"})
 
 	err := p.Parse(os.Args)
 	if err != nil {
@@ -50,35 +55,32 @@ func main() {
 		os.Exit(1)
 	}
 
-	config := new(VcdcBridgeConfig)
-	config.host = *host
-	config.port = *port
-	config.modelName = *modelName
-	config.vendorName = *vendorName
-	config.dryMode = *dryMode
-
-	config.mqttHost = *mqttHost
-	config.mqttUsername = *mqttUsername
-	config.mqttPassword = *mqttPassword
-
-	config.deconzHost = *deconzHost
-	config.deconzPort = *deconzPort
-	config.deconcWebSockerPort = *deconzWebSocketPort
-	config.deconzApi = *deconzAPI
-	config.deconzEnableGroups = *deconzEnableGroups
-
-	if config.mqttHost != "" {
-		config.mqttDiscoveryEnabled = true
-	}
-	config.shellyDisabled = *shellyDisabled
-	config.tasmotaDisabled = *tasmotaDisabled
-	config.deconzDisabled = *deconzDisabled
-	config.zigbee2mqttDisabled = *zigbee2mqttDisabled
-	config.wledDisabled = *wledDisabled
-
-	// Disable if config not complete
-	if config.deconzHost == "" || config.deconzApi == "" || config.deconzPort == 0 {
-		config.deconzDisabled = true
+	config, err := buildConfig(
+		*host,
+		*port,
+		*modelName,
+		*vendorName,
+		*dryMode,
+		*mqttHost,
+		*mqttUsername,
+		*mqttPassword,
+		*homeassistantURL,
+		*homeassistantToken,
+		*deconzHost,
+		*deconzPort,
+		*deconzWebSocketPort,
+		*deconzAPI,
+		*deconzEnableGroups,
+		*tasmotaDisabled,
+		*shellyDisabled,
+		*deconzDisabled,
+		*zigbee2mqttDisabled,
+		*wledDisabled,
+		*homeassistantDisabled,
+	)
+	if err != nil {
+		log.Error(err)
+		os.Exit(1)
 	}
 
 	vcdcbrige := new(VcdcBridge)
@@ -99,4 +101,77 @@ func getLogLevel() log.Level {
 	}
 
 	return level
+}
+
+func buildConfig(
+	host string,
+	port int,
+	modelName string,
+	vendorName string,
+	dryMode bool,
+	mqttHost string,
+	mqttUsername string,
+	mqttPassword string,
+	homeassistantURL string,
+	homeassistantToken string,
+	deconzHost string,
+	deconzPort int,
+	deconzWebSocketPort int,
+	deconzAPI string,
+	deconzEnableGroups bool,
+	tasmotaDisabled bool,
+	shellyDisabled bool,
+	deconzDisabled bool,
+	zigbee2mqttDisabled bool,
+	wledDisabled bool,
+	homeassistantDisabled bool,
+) (*VcdcBridgeConfig, error) {
+	config := new(VcdcBridgeConfig)
+	config.host = strings.TrimSpace(host)
+	config.port = port
+	config.modelName = strings.TrimSpace(modelName)
+	config.vendorName = strings.TrimSpace(vendorName)
+	config.dryMode = dryMode
+
+	config.mqttHost = strings.TrimSpace(mqttHost)
+	config.mqttUsername = strings.TrimSpace(mqttUsername)
+	config.mqttPassword = mqttPassword
+
+	config.homeassistantURL = strings.TrimSpace(homeassistantURL)
+	config.homeassistantToken = strings.TrimSpace(homeassistantToken)
+
+	config.deconzHost = strings.TrimSpace(deconzHost)
+	config.deconzPort = deconzPort
+	config.deconcWebSockerPort = deconzWebSocketPort
+	config.deconzApi = strings.TrimSpace(deconzAPI)
+	config.deconzEnableGroups = deconzEnableGroups
+
+	config.tasmotaDisabled = tasmotaDisabled
+	config.shellyDisabled = shellyDisabled
+	config.deconzDisabled = deconzDisabled
+	config.zigbee2mqttDisabled = zigbee2mqttDisabled
+	config.wledDisabled = wledDisabled
+	config.homeassistantDisabled = homeassistantDisabled
+
+	if config.mqttHost != "" {
+		config.mqttDiscoveryEnabled = true
+	}
+
+	if config.mqttHost == "" && (!config.tasmotaDisabled || !config.shellyDisabled || !config.zigbee2mqttDisabled) {
+		return nil, fmt.Errorf("mqtt host is required when MQTT-based discovery is enabled")
+	}
+
+	if !config.deconzDisabled {
+		if config.deconzHost == "" || config.deconzApi == "" || config.deconzPort == 0 {
+			return nil, fmt.Errorf("deconz discovery requires --deconzhost, --deconzport, and --deconzapi")
+		}
+	}
+
+	if !config.homeassistantDisabled {
+		if config.homeassistantURL == "" || config.homeassistantToken == "" {
+			return nil, fmt.Errorf("home assistant discovery requires --homeassistant-url and --homeassistant-token")
+		}
+	}
+
+	return config, nil
 }

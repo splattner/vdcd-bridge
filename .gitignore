@@ -5,6 +5,7 @@
 *.so
 *.dylib
 
+
 # Test binary, built with `go test -c`
 *.test
 
@@ -18,6 +19,7 @@
 
 vendor
 __debug_bin
+vdcd-bridge
 vdcd-bridge-amd64
 vdcd-bridge-arm64
 .work

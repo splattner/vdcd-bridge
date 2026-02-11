@@ -57,7 +57,9 @@ func (e *DeconzDevice) lightsDiscovery(light deconzlight.Light) {
 				deconzDevice.NewDeconzDevice(e.vdcdClient, e.deconzHost, e.deconzPort, e.deconzWebSocketPort, e.deconzAPI)
 			}
 
-			e.allDeconzDevices = append(e.allDeconzDevices, *deconzDevice)
+			if !e.hasDeconzDevice("lights", deconzDevice.light.ID) {
+				e.allDeconzDevices = append(e.allDeconzDevices, *deconzDevice)
+			}
 		}
 	}
 

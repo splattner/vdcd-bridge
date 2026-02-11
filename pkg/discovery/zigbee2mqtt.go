@@ -12,6 +12,7 @@ import (
 
 type Zigbee2MQTTDevice struct {
 	GenericDevice
+	discoverySubscribed bool
 
 	z2MGroup  Z2MGroup
 	z2MDevice Z2MDevice
@@ -308,6 +309,12 @@ func (e *Zigbee2MQTTDevice) StartDiscovery(vdcdClient *vdcdapi.Client, mqttClien
 	e.mqttClient = mqttClient
 	e.vdcdClient = vdcdClient
 
+	if e.discoverySubscribed {
+		e.TriggerDiscovery()
+		return
+	}
+	e.discoverySubscribed = true
+
 	if e.mqttProxy == nil {
 		e.mqttProxy = new(MQTTProxy)
 		e.mqttProxy.mqttClient = e.mqttClient
@@ -315,6 +322,15 @@ func (e *Zigbee2MQTTDevice) StartDiscovery(vdcdClient *vdcdapi.Client, mqttClien
 
 	log.Info(("Starting Zigbee2MQTT Device discovery"))
 	e.subscribeMqttTopic("zigbee2mqtt/bridge/#", e.mqttDiscoverCallback())
+	e.TriggerDiscovery()
+}
+
+func (e *Zigbee2MQTTDevice) TriggerDiscovery() {
+	if e.mqttClient == nil {
+		return
+	}
+	e.publishMqttCommand("zigbee2mqtt/bridge/request/devices", "")
+	e.publishMqttCommand("zigbee2mqtt/bridge/request/groups", "")
 }
 
 func (e *Zigbee2MQTTDevice) mqttDiscoverCallback() mqtt.MessageHandler {

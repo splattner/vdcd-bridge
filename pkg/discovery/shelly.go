@@ -13,6 +13,7 @@ import (
 
 type ShellyDevice struct {
 	GenericDevice
+	discoverySubscribed  bool
 	Id                   string `json:"id,omitempty"`
 	Model                string `json:"model,omitempty"`
 	MACAddress           string `json:"mac,omitempty"`
@@ -82,10 +83,23 @@ func (e *ShellyDevice) StartDiscovery(vdcdClient *vdcdapi.Client, mqttClient mqt
 	e.mqttClient = mqttClient
 	e.vdcdClient = vdcdClient
 
+	if e.discoverySubscribed {
+		e.TriggerDiscovery()
+		return
+	}
+	e.discoverySubscribed = true
+
 	log.Infoln(("Starting Shelly Device discovery"))
 
 	e.subscribeMqttTopic("shellies/announce", e.mqttDiscoverCallback())
 	e.subscribeMqttTopic("shellies/+/info", e.mqttDiscoverCallback())
+	e.TriggerDiscovery()
+}
+
+func (e *ShellyDevice) TriggerDiscovery() {
+	if e.mqttClient == nil {
+		return
+	}
 	e.publishMqttCommand("shellies/command", "announce")
 }
 

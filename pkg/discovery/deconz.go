@@ -40,6 +40,7 @@ type DeconzDevice struct {
 
 	// Array with all lights, groups, sensors
 	allDeconzDevices []DeconzDevice
+	websocketStarted bool
 
 	done      chan interface{}
 	interrupt chan os.Signal
@@ -56,6 +57,26 @@ type DeconzWebSocketMessage struct {
 	Name       string               `json:"name,omitempty"`
 	Attributes DeconzLightAttribute `json:"attr,omitempty"`
 	State      DeconzState          `json:"state,omitempty"`
+}
+
+func (e *DeconzDevice) hasDeconzDevice(resource string, id int) bool {
+	for _, device := range e.allDeconzDevices {
+		switch resource {
+		case "lights":
+			if device.IsLight && device.light.ID == id {
+				return true
+			}
+		case "groups":
+			if device.IsGroup && device.group.ID == id {
+				return true
+			}
+		case "sensors":
+			if device.IsSensor && device.sensor.ID == id {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 type DeconzLightAttribute struct {
@@ -161,7 +182,10 @@ func (e *DeconzDevice) StartDiscovery(vdcdClient *vdcdapi.Client, deconzHost str
 
 	// WebSocket Handling for all Devices
 	// no need for every device to open its own websocket connection
-	go e.websocketLoop()
+	if !e.websocketStarted {
+		e.websocketStarted = true
+		go e.websocketLoop()
+	}
 
 	log.Debugf("Deconz, Device Discovery finished\n")
 }

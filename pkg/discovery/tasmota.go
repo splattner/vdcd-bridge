@@ -13,30 +13,31 @@ import (
 
 type TasmotaDevice struct {
 	GenericDevice
-	IPAddress       string         `json:"ip,omitempty"`
-	DeviceName      string         `json:"dn,omitempty"`
-	FriendlyName    []string       `json:"fn,omitempty"`
-	Hostname        string         `json:"hn,omitempty"`
-	MACAddress      string         `json:"mac,omitempty"`
-	Module          string         `json:"md,omitempty"`
-	TuyaMCUFlag     int            `json:"ty,omitempty"`
-	IFAN            int            `json:"if,omitempty"`
-	DOffline        string         `json:"ofln,omitempty"`
-	DOnline         string         `json:"onln,omitempty"`
-	State           []string       `json:"st,omitempty"`
-	SoftwareVersion string         `json:"sw,omitempty"`
-	Topic           string         `json:"t,omitempty"`
-	Fulltopic       string         `json:"ft,omitempty"`
-	TopicPrefix     []string       `json:"tp,omitempty"`
-	Relays          []int          `json:"rl,omitempty"`
-	Switches        []int          `json:"swc,omitempty"`
-	SWN             []int          `json:"swn,omitempty"`
-	Buttons         []int          `json:"btn,omitempty"`
-	SetOptions      map[string]int `json:"so,omitempty"`
-	LK              int            `json:"lk,omitempty"`    // LightColor (LC) and RGB LinKed https://github.com/arendst/Tasmota/blob/development/tasmota/xdrv_04_light.ino#L689
-	LightSubtype    int            `json:"lt_st,omitempty"` // https://github.com/arendst/Tasmota/blob/development/tasmota/xdrv_04_light.ino
-	ShutterOptions  []int          `json:"sho,omitempty"`
-	Version         int            `json:"ver,omitempty"`
+	discoverySubscribed bool
+	IPAddress           string         `json:"ip,omitempty"`
+	DeviceName          string         `json:"dn,omitempty"`
+	FriendlyName        []string       `json:"fn,omitempty"`
+	Hostname            string         `json:"hn,omitempty"`
+	MACAddress          string         `json:"mac,omitempty"`
+	Module              string         `json:"md,omitempty"`
+	TuyaMCUFlag         int            `json:"ty,omitempty"`
+	IFAN                int            `json:"if,omitempty"`
+	DOffline            string         `json:"ofln,omitempty"`
+	DOnline             string         `json:"onln,omitempty"`
+	State               []string       `json:"st,omitempty"`
+	SoftwareVersion     string         `json:"sw,omitempty"`
+	Topic               string         `json:"t,omitempty"`
+	Fulltopic           string         `json:"ft,omitempty"`
+	TopicPrefix         []string       `json:"tp,omitempty"`
+	Relays              []int          `json:"rl,omitempty"`
+	Switches            []int          `json:"swc,omitempty"`
+	SWN                 []int          `json:"swn,omitempty"`
+	Buttons             []int          `json:"btn,omitempty"`
+	SetOptions          map[string]int `json:"so,omitempty"`
+	LK                  int            `json:"lk,omitempty"`    // LightColor (LC) and RGB LinKed https://github.com/arendst/Tasmota/blob/development/tasmota/xdrv_04_light.ino#L689
+	LightSubtype        int            `json:"lt_st,omitempty"` // https://github.com/arendst/Tasmota/blob/development/tasmota/xdrv_04_light.ino
+	ShutterOptions      []int          `json:"sho,omitempty"`
+	Version             int            `json:"ver,omitempty"`
 }
 
 type TasmotaResultMsg struct {
@@ -158,6 +159,11 @@ func (e *TasmotaDevice) SetValue(value float32, channelName string, channelType 
 func (e *TasmotaDevice) StartDiscovery(vdcdClient *vdcdapi.Client, mqttClient mqtt.Client) {
 	e.mqttClient = mqttClient
 	e.vdcdClient = vdcdClient
+
+	if e.discoverySubscribed {
+		return
+	}
+	e.discoverySubscribed = true
 
 	log.Infoln(("Starting Tasmota Device discovery"))
 	e.subscribeMqttTopic("tasmota/discovery/#", e.mqttDiscoverCallback())

@@ -132,7 +132,9 @@ func (e *DeconzDevice) CreateButtonDevice(sensor deconzsensor.Sensor, buttonId i
 		deconzDeviceSensor.NewDeconzDevice(e.vdcdClient, e.deconzHost, e.deconzPort, e.deconzWebSocketPort, e.deconzAPI)
 	}
 
-	e.allDeconzDevices = append(e.allDeconzDevices, *deconzDeviceSensor)
+	if !e.hasDeconzDevice("sensors", deconzDeviceSensor.sensor.ID) {
+		e.allDeconzDevices = append(e.allDeconzDevices, *deconzDeviceSensor)
+	}
 
 }
 

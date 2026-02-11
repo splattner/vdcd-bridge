@@ -45,7 +45,9 @@ func (e *DeconzDevice) groupsDiscovery(group deconzgroup.Group) {
 			deconzDeviceGroup.NewDeconzDevice(e.vdcdClient, e.deconzHost, e.deconzPort, e.deconzWebSocketPort, e.deconzAPI)
 		}
 
-		e.allDeconzDevices = append(e.allDeconzDevices, *deconzDeviceGroup)
+		if !e.hasDeconzDevice("groups", deconzDeviceGroup.group.ID) {
+			e.allDeconzDevices = append(e.allDeconzDevices, *deconzDeviceGroup)
+		}
 
 	}
 
